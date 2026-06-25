@@ -107,7 +107,7 @@ HARD GENERATION RULES (in addition to the house style above):
 - Output PLAIN TEXT only. Do NOT use markdown — no ** for bold, no markdown headings, no markdown bullet characters in block text. The renderer applies all emphasis (equipment model numbers are styled automatically).
 - Return ONLY valid JSON matching this exact shape (no prose, no code fences):
   {"headerLine":string,"title":string,"subtitle":string|null,"basisStatement":string|null,"sections":[{"heading":string,"level":1|2,"blocks":[{"kind":"paragraph","text":string}|{"kind":"subheading","text":string}|{"kind":"bullets","items":string[]}]}]}
-- headerLine should read: "EOS IT Management Solutions  |  <ProjectNumber>  |  <ProjectName>". title is "<ProjectNumber>  <ProjectName>". subtitle is the room/space configuration. basisStatement is the italic basis/hedge line.`;
+- headerLine should read: "<Company>  |  <ProjectNumber>  |  <ProjectName>", where <Company> is the integrator/company name provided in the user message (use it verbatim; if none is provided, use "[Company Name]" — never invent a company). title is "<ProjectNumber>  <ProjectName>". subtitle is the room/space configuration. basisStatement is the italic basis/hedge line.`;
 
 const SOW_SYSTEM =
   (HOUSE_STYLE || "You write formal AV/UC delivery Scopes of Work.") + SOW_HARD_RULES;
@@ -116,7 +116,7 @@ const SOW_SYSTEM =
 // output mode). NOT a quote, NOT binding; no pricing/dollars/labor/model numbers.
 const ROM_SYSTEM =
   "You write a concise budgetary ROM (Rough Order of Magnitude) scope summary " +
-  "for an AV/UC project in EOS's professional voice. A ROM is for EARLY CLIENT " +
+  "for an AV/UC project in the integrator's professional voice. A ROM is for EARLY CLIENT " +
   "BUDGETING — it is NOT a quote and NOT binding. It contains NO pricing, NO " +
   "dollar figures, NO labor, and NO part or model numbers. " +
   "Write the 'overview' as ONE paragraph naming the customer, the project, and " +
@@ -133,9 +133,11 @@ const ROM_SYSTEM =
   "Return ONLY valid minified JSON, no prose, no fences, matching this shape: " +
   '{"headerLine":string,"title":string,"customer":string|null,"overview":string,' +
   '"rooms":[{"name":string,"summary":string}]}. ' +
-  'headerLine reads "EOS IT Management Solutions  |  <ProjectNumber>  |  ' +
-  '<ProjectName>"; title is "<ProjectNumber>  <ProjectName>"; customer is the ' +
-  "client/company name (null if unknown).";
+  'headerLine reads "<Company>  |  <ProjectNumber>  |  ' +
+  '<ProjectName>", where <Company> is the integrator/company name provided in the ' +
+  'user message (use it verbatim; if none, use "[Company Name]" — never invent ' +
+  'one); title is "<ProjectNumber>  <ProjectName>"; customer is the ' +
+  "client/customer name (null if unknown).";
 
 // Match-a-Style (SOW.8): appended to SOW_SYSTEM ONLY when the user opts to match
 // a provided example. It governs voice/structure/detail; the hard rules above win.
@@ -146,11 +148,11 @@ STYLE MATCH MODE:
 Match the VOICE, SECTION STRUCTURE, and LEVEL OF DETAIL of the STYLE EXAMPLE provided in the user message. The example governs tone, organization, and depth ONLY.
 ALL hard rules above remain in force regardless of the example: name only BOM equipment with the exact manufacturer/model/quantity, never invent gear, OFE/existing stays (never removed), removals only from bom.removals, no pricing or labor, accessory tiering per house-style section 5.2. If the example conflicts with a hard rule, the HARD RULE WINS. Do NOT copy the example's equipment, rooms, quantities, or specific content — only its writing style and structure.`;
 
-// Style analysis: compares an example SOW's WRITING STYLE to EOS house style.
+// Style analysis: compares an example SOW's WRITING STYLE to the house style.
 const STYLE_ANALYSIS_SYSTEM =
   "You compare the WRITING STYLE of a provided example AV/UC Scope of Work against " +
-  "typical EOS house style. EOS house style: third-person declarative delivery " +
-  "voice (\"EOS will provide and install ...\"), organized by Location/Room then " +
+  "the typical house style. House style: third-person declarative delivery " +
+  "voice (the integrator \"will provide and install ...\"), organized by Location/Room then " +
   "System (Display, Video, Audio, Conferencing, Control, Network, Rack), bold " +
   "manufacturer+model on first mention, dense signal-flow detail describing what " +
   "each device does and connects to, and standard exceptions/clarifications " +
@@ -635,7 +637,7 @@ app.post("/api/extract-text", async (req: Request, res: Response) => {
   }
 });
 
-// Analyze how an example SOW's writing style compares to EOS house style.
+// Analyze how an example SOW's writing style compares to the house style.
 app.post("/api/analyze-style", async (req: Request, res: Response) => {
   let raw = "";
   try {
@@ -685,12 +687,19 @@ app.post("/api/generate-sow", async (req: Request, res: Response) => {
       : "=== STYLE REFERENCE ONLY — do not copy any content; match the voice, structure, sentence engine, and level of technical detail ===";
     const styleEnd = matching ? "=== END STYLE EXAMPLE ===" : "=== END STYLE REFERENCE ===";
 
+    const company =
+      typeof meta?.company === "string" && meta.company.trim()
+        ? meta.company.trim()
+        : "[Company Name]";
+
     const user =
       "BOM (authoritative — the ONLY source of equipment, quantities, and removals). " +
       "bom.removals is the ONLY source of removed equipment:\n" +
       JSON.stringify(bom) +
       "\n\nProject metadata:\n" +
       JSON.stringify(meta) +
+      '\n\nCOMPANY (the integrator writing this SOW — use this EXACT name in place of <Company>: as the subject of every "will provide and install" sentence and as the running-header company): ' +
+      company +
       "\n\n" +
       styleLabel +
       "\n" +
@@ -726,12 +735,19 @@ app.post("/api/generate-rom", async (req: Request, res: Response) => {
       projectName: bom.projectName ?? null,
     };
 
+    const company =
+      typeof meta?.company === "string" && meta.company.trim()
+        ? meta.company.trim()
+        : "[Company Name]";
+
     const user =
       "BOM (map equipment to SYSTEM CATEGORIES only — never quote models, " +
       "manufacturers, quantities, or pricing):\n" +
       JSON.stringify(bom) +
       "\n\nProject metadata:\n" +
       JSON.stringify(meta) +
+      "\n\nCOMPANY (the integrator — use this EXACT name in place of <Company>, in the running header and as the author/voice): " +
+      company +
       "\n\nReturn ONLY the RomDoc JSON for THIS project.";
 
     const msg = await callClaude({

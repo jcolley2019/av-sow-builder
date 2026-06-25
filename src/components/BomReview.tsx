@@ -61,7 +61,15 @@ function Field({
   );
 }
 
-export function BomReview({ editor }: { editor: BomEditor }) {
+export function BomReview({
+  editor,
+  company,
+  onCompanyChange,
+}: {
+  editor: BomEditor;
+  company: string;
+  onCompanyChange: (v: string) => void;
+}) {
   const core = editor.core;
   // View-only room filter. Holds an original location index or "all". Never
   // mutates the BomDoc/editor — generation always receives the full document.
@@ -99,8 +107,14 @@ export function BomReview({ editor }: { editor: BomEditor }) {
           <CardTitle className="text-base">Project details</CardTitle>
           <CardDescription>Edit any field — these flow into the SOW header.</CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {/* Order: Customer Name, Project Number, Project Name. */}
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Company is the integrator (saved default); then Customer, Number, Name. */}
+          <Field
+            label="Company Name"
+            value={company}
+            placeholder="Your company (the integrator)"
+            onChange={onCompanyChange}
+          />
           <Field
             label="Customer Name"
             value={core.customer ?? ""}

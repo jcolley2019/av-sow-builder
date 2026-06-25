@@ -20,10 +20,12 @@ import { StylePanel } from "@/components/StylePanel";
 import { SowPreview } from "@/components/SowPreview";
 import { RomPreview } from "@/components/RomPreview";
 import { CompareView } from "@/components/CompareView";
+import { LaborView } from "@/components/LaborView";
 import { RawError } from "@/components/RawError";
 import { Model } from "@/components/Model";
 import { cn } from "@/lib/utils";
 import { useBomEditor } from "@/lib/useBomEditor";
+import { useLaborModel } from "@/lib/useLaborModel";
 import { allModels, coverage } from "@/lib/sow";
 import { downloadRomDocx, downloadSowDocx } from "@/lib/docx";
 import {
@@ -48,9 +50,35 @@ import type { BomDoc, RomDoc, SowDoc } from "@/lib/types";
 
 type OutputMode = "sow" | "rom" | "compare";
 
+type TopView = "builder" | "labor";
+
+// The integrator/company name persists as an editable default in localStorage,
+// pre-filling new projects but fully erasable per project.
+const COMPANY_KEY = "sow.companyName";
+function loadCompanyDefault(): string {
+  try {
+    return localStorage.getItem(COMPANY_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
 function App() {
   const editor = useBomEditor();
+  const labor = useLaborModel();
   const reduce = useReducedMotion();
+
+  const [view, setView] = useState<TopView>("builder");
+  const [company, setCompany] = useState<string>(loadCompanyDefault);
+
+  function updateCompany(v: string) {
+    setCompany(v);
+    try {
+      if (v.trim()) localStorage.setItem(COMPANY_KEY, v);
+    } catch {
+      /* ignore storage failures */
+    }
+  }
 
   const [bomBusy, setBomBusy] = useState(false);
   const [bomError, setBomError] = useState<ExtractError | null>(null);
@@ -104,6 +132,7 @@ function App() {
         customer: editor.core.customer,
         projectNumber: editor.core.projectNumber,
         projectName: editor.core.projectName,
+        company: company.trim() ? company.trim() : null,
       }
     : null;
 
@@ -146,6 +175,7 @@ function App() {
       setRom(null);
       setSowError(null);
       setDepFlags(null); // dependency flags are stale against a new BOM
+      labor.reset(); // per-project labor edits are stale against a new BOM
     } catch (e) {
       setBomError({ error: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -361,6 +391,8 @@ function App() {
     clearCompare();
     setDepFlags(null);
     setDepError(null);
+    labor.reset();
+    setCompany(loadCompanyDefault()); // keep the saved company default
   }
 
   // Shared guided-removal props for both demo intakes (intake + review).
@@ -418,10 +450,31 @@ function App() {
             <span className="font-mono text-base font-semibold leading-none tracking-tight">
               SOW Generator
             </span>
-            <span className="eyebrow mt-1">EOS · Delivery Scope</span>
+            <span className="eyebrow mt-1">Delivery Scope</span>
           </div>
+
+          {/* Top-level view switch — both views share the in-memory project. */}
+          <div className="ml-2 inline-flex rounded-md border border-border p-0.5">
+            <button
+              type="button"
+              aria-pressed={view === "builder"}
+              className={segClass(view === "builder")}
+              onClick={() => setView("builder")}
+            >
+              SOW Builder
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === "labor"}
+              className={segClass(view === "labor")}
+              onClick={() => setView("labor")}
+            >
+              Labor &amp; Travel
+            </button>
+          </div>
+
           <div className="flex-1" />
-          {showReview && (
+          {view === "builder" && showReview && (
             <Button variant="ghost" size="sm" onClick={startOver}>
               <RotateCcw /> Start over
             </Button>
@@ -429,24 +482,29 @@ function App() {
         </div>
       </header>
 
-      {/* Two-pane workspace. On lg each pane fills the viewport below the top
-          bar and scrolls independently; below lg the panes stack and the page
-          scrolls normally. */}
+      {view === "labor" ? (
+        <main className="flex-1 lg:min-h-0 lg:overflow-y-auto">
+          <LaborView bom={editor.doc} labor={labor} company={company} />
+        </main>
+      ) : (
+      /* Two-pane workspace. On lg each pane fills the viewport below the top
+         bar and scrolls independently; below lg the panes stack. */
       <main className="flex-1 lg:min-h-0 lg:overflow-hidden">
-        <div className="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 sm:px-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] lg:grid-rows-1 lg:gap-8">
+        <div className="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 sm:px-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-1 lg:gap-8">
           {/* LEFT — input / controls on the dark instrument surface */}
           <motion.section
             key={showReview ? "review" : "intake"}
             {...load}
-            className="min-w-0 space-y-4 py-6 lg:min-h-0 lg:overflow-y-auto lg:pr-2"
+            className="flex min-w-0 flex-col lg:min-h-0"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pt-6 lg:shrink-0 lg:pr-2">
               <span className="eyebrow">Input · Bill of Materials</span>
               {showReview && (
                 <span className="eyebrow text-muted-foreground">{itemCount} item(s)</span>
               )}
             </div>
 
+            <div className="space-y-4 pb-6 pt-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-2">
             {!showReview ? (
               <BomIntake
                 onBomFiles={handleBomFiles}
@@ -458,7 +516,7 @@ function App() {
               />
             ) : (
               <div className="space-y-4">
-                <BomReview editor={editor} />
+                <BomReview editor={editor} company={company} onCompanyChange={updateCompany} />
 
                 <RemovalsPanel editor={editor} demo={demo} />
 
@@ -480,19 +538,22 @@ function App() {
 
               </div>
             )}
+            </div>
           </motion.section>
 
           {/* RIGHT — output pane: a pinned control card (mode toggle + actions)
               over the framed document that scrolls within the pane. */}
           <motion.section {...load} className="flex min-w-0 flex-col lg:min-h-0">
-            <div className="space-y-3 pt-6 lg:shrink-0">
-              <span className="eyebrow">
-                {mode === "compare"
-                  ? "Output · Compare"
-                  : mode === "rom"
-                    ? "Output · ROM Summary"
-                    : "Output · Scope of Work"}
-              </span>
+            <div className="space-y-3 pt-6 lg:shrink-0 lg:pr-2">
+              <div className="flex items-center justify-between">
+                <span className="eyebrow">
+                  {mode === "compare"
+                    ? "Output · Compare"
+                    : mode === "rom"
+                      ? "Output · ROM Summary"
+                      : "Output · Scope of Work"}
+                </span>
+              </div>
 
               {/* Control card — mirrors the input pane's framed cards. */}
               <Card>
@@ -657,6 +718,7 @@ function App() {
           </motion.section>
         </div>
       </main>
+      )}
     </div>
   );
 }

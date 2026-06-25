@@ -5,7 +5,7 @@
 /*
   SOW Generator — design tokens.
   A tool/paper duality: a quiet dark "instrument panel" for the app chrome and
-  a warm light "paper" surface for the SOW preview. One accent only (EOS red),
+  a warm light "paper" surface for the SOW preview. One accent only (blue),
   used sparingly. See docs/DESIGN.md.
 */
 @layer base {
@@ -26,16 +26,16 @@
     --secondary: 214 19% 15%;
     --secondary-foreground: 219 19% 92%;
     --muted: 216 16% 14%;
-    --accent: 214 19% 19%; /* quiet hover/active surface (NOT the brand red) */
+    --accent: 214 19% 19%; /* quiet hover/active surface (NOT the brand blue) */
     --accent-foreground: 219 19% 92%;
     --border: 215 17% 20%; /* #2A313B hairline      */
     --input: 215 17% 20%;
 
-    /* The single accent — EOS brand red. Primary actions / active / focus. */
-    --primary: 350 85% 42%; /* #C8102E */
-    --primary-hover: 351 77% 50%; /* #E11D3A */
+    /* The single accent — brand blue. Primary actions / active / focus. */
+    --primary: 221 83% 53%; /* #2563EB */
+    --primary-hover: 224 76% 48%; /* #1D4ED8 */
     --primary-foreground: 0 0% 100%;
-    --ring: 351 80% 52%;
+    --ring: 221 83% 53%; /* #2563EB */
 
     /* Delete/destructive — a slightly quieter red so it doesn't compete with
        the primary action; deletes are low-emphasis ghost controls. */
@@ -92,9 +92,9 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Visible keyboard focus everywhere. shadcn controls set their own red ring
+  /* Visible keyboard focus everywhere. shadcn controls set their own blue ring
      (this low-specificity rule yields to that, so there's no double ring);
-     every other focusable element gets a clear red outline. */
+     every other focusable element gets a clear blue outline. */
   :focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;

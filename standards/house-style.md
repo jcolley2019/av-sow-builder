@@ -1,6 +1,6 @@
-# EOS AV/UC Scope of Work — House Style
+# AV/UC Scope of Work — House Style
 
-This is the source of truth for how an EOS delivery Scope of Work (SOW) is written.
+This is the source of truth for how a delivery Scope of Work (SOW) is written.
 It is used as the system prompt for SOW generation. The generator must follow it exactly.
 Derived from real delivered SOWs (Jones Day NY Rev6, Centene MPR Rev9).
 
@@ -9,9 +9,9 @@ Derived from real delivered SOWs (Jones Day NY Rev6, Centene MPR Rev9).
 ## 1. SOW mode
 
 The app writes a **delivery SOW**: a committed, BOM-traceable scope.
-Voice is "EOS will provide and install …", third person, future tense, declarative.
+Voice is "<Company> will provide and install …", third person, future tense, declarative.
 
-Do NOT write in the persuasive "design / bake-off" voice ("EOS would propose / would
+Do NOT write in the persuasive "design / bake-off" voice ("<Company> would propose / would
 recommend …", design-philosophy prose, room-type groupings, "look ahead" sections).
 That is a separate mode and is out of scope unless explicitly requested.
 
@@ -24,7 +24,7 @@ delivery mode.
 
 ## 2. Document identity (top of every SOW)
 
-- **Running header line:** `EOS IT Management Solutions  |  <ProjectNumber>  |  <ProjectName>`
+- **Running header line:** `<Company>  |  <ProjectNumber>  |  <ProjectName>` — `<Company>` is the integrator/company name supplied to the generator (use it verbatim; if none, use `[Company Name]`). `<Client>` elsewhere is the customer.
 - **Title (bold):** `<ProjectNumber>  <ProjectName>`
 - **Subtitle (bold):** the room/space configuration, e.g.
   - `2-Way Divisible Conference Suite — Rooms 3401A and 3401B`
@@ -74,8 +74,8 @@ contain more than one suite (Centene has a 3-Way and a 2-Way); write each suite 
 ## 5. The sentence engine (core voice)
 
 - **Equipment provision:**
-  `EOS will provide and install <qty-word> (<qty-num>) **<Manufacturer Model>** <plain-English role>.`
-  - e.g. `EOS will provide and install two (2) **Samsung QM85C 85″ 4K UHD displays** on two (2) **Chief XTM1U Micro-Adjust Tilt wall mounts**.`
+  `<Company> will provide and install <qty-word> (<qty-num>) **<Manufacturer Model>** <plain-English role>.`
+  - e.g. `<Company> will provide and install two (2) **Samsung QM85C 85″ 4K UHD displays** on two (2) **Chief XTM1U Micro-Adjust Tilt wall mounts**.`
 - **Quantities:** spell out + numeral — `two (2)`, `sixteen (16)`. At a sentence/clause start, a
   bare `(3)` is acceptable. Always match the BOM quantity exactly.
 - **Bold** every Manufacturer + Model on first mention in a section.
@@ -86,7 +86,7 @@ contain more than one suite (Centene has a 3-Way and a 2-Way); write each suite 
     streaming the codec's program output onto the AV-over-IP network."
   - Bad: "one (1) QSC NV-21-HU."
 - **Owner-Furnished Equipment (OFE) / existing-to-remain**, called out per section:
-  `**OFE:** The existing <items> remain in place and are reused; EOS will incorporate them into the new system.`
+  `**OFE:** The existing <items> remain in place and are reused; <Company> will incorporate them into the new system.`
   (See §5.1 — OFE is NOT the same as removed equipment.)
 - **Group by system within a room/suite** in this order: Display, Video, Audio, Conferencing,
   Control, Network/Switch, Rack/Power/Peripherals.
@@ -104,7 +104,7 @@ even when nothing is being done to it.
 **Removals are the exception and come from a SEPARATE source — never from the BOM.** Equipment is
 marked for demolition only when as-built / existing-system drawings (or an explicit demolition
 list) are provided that call it out for removal. Those drawings are a distinct, optional input,
-separate from the BOM, and EOS does not usually have them.
+separate from the BOM, and the integrator does not usually have them.
 
 Therefore:
 - **BOM only (the usual case):** every line is new or OFE/existing-staying. There is NO "Equipment
@@ -119,12 +119,12 @@ Not all "accessories" are equal. Tier each BOM line and handle it accordingly:
 
 - TIER A — Loose patch cables / jumpers (HDMI, USB-A/B/C, DisplayPort, short
   pre-terminated network patch cords): do NOT list individually. Cover them with ONE
-  catch-all sentence in the relevant system, e.g. "EOS will provide all necessary HDMI,
+  catch-all sentence in the relevant system, e.g. "<Company> will provide all necessary HDMI,
   USB-A/B/C, and network patch cables to interconnect the system." This sentence is
   optional/editable — include it when such cables exist in the BOM.
 
 - TIER B — Bulk / spooled / quantity cable (cable on spools, plenum bulk runs,
-  speaker wire by the foot/spool): NAME it with quantity and purpose, e.g. "EOS will
+  speaker wire by the foot/spool): NAME it with quantity and purpose, e.g. "<Company> will
   provide three (3) spools of CAT6A cable for video and control distribution." Do not
   bury these in the catch-all.
 

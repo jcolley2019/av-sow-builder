@@ -54,11 +54,12 @@ export function RomPreview({ rom, meta, busy, onChange }: Props) {
   if (!rom) {
     const projectNumber = meta?.projectNumber?.trim() || "";
     const projectName = meta?.projectName?.trim() || "";
+    const company = meta?.company?.trim() || "[Company Name]";
     const titled = projectNumber || projectName;
     return (
       <PaperSheet>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-paper-hairline pb-3 text-xs text-paper-muted">
-          <span>EOS IT Management Solutions</span>
+          <span>{company}</span>
           <span aria-hidden className="text-paper-hairline">|</span>
           <span className="font-mono">{projectNumber || "————"}</span>
           <span aria-hidden className="text-paper-hairline">|</span>

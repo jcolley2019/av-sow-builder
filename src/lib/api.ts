@@ -46,6 +46,8 @@ export type SowMeta = {
   customer: string | null;
   projectNumber: string | null;
   projectName: string | null;
+  /** The integrator writing the SOW ("<Company> will provide and install…"). */
+  company: string | null;
 };
 
 export type ExtractError = { error: string; raw?: string };
@@ -162,7 +164,7 @@ export async function extractStyleText(file: File): Promise<string> {
   return (await file.text()).trim();
 }
 
-/** Summarize how an example's writing style compares to EOS house style. */
+/** Summarize how an example's writing style compares to the house style. */
 export function analyzeStyle(sample: string): Promise<StyleAnalysis | ExtractError> {
   return postJson<StyleAnalysis | ExtractError>("/api/analyze-style", { sample });
 }

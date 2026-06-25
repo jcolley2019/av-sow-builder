@@ -141,7 +141,7 @@ export function StylePanel({
                   className={seg(styleMode === "house")}
                   onClick={() => onModeChange("house")}
                 >
-                  EOS house style
+                  House style
                 </button>
                 <button
                   type="button"

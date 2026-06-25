@@ -16,7 +16,7 @@ the Word `.docx` the tool produces. The element that crosses the seam is the **e
 model number** — always set in the mono face, on both the dark tables and the cream page.
 It is the recurring material of the interface.
 
-## Palette (one accent only — EOS red)
+## Palette (one accent only — blue)
 
 Dark instrument surfaces:
 - `--background` desk `#0F1115` · `--panel` `#161A20` · `--raised` `#1E242C`
@@ -24,13 +24,13 @@ Dark instrument surfaces:
 - text `--foreground` `#E6E9EE` · `--muted-foreground` `#9AA4B2`
 
 Accent (sparingly — primary actions, active state, focus ring only; never large fills):
-- `--primary` `#C8102E` · `--primary-hover` `#E11D3A` · on-accent text `#FFFFFF`
-- `--ring` `#E11D3A` · `--destructive` quieter red `#C42E3F` (low-emphasis delete controls)
+- `--primary` `#2563EB` · `--primary-hover` `#1D4ED8` · on-accent text `#FFFFFF`
+- `--ring` `#2563EB` · `--destructive` quieter red `#C42E3F` (low-emphasis delete controls)
 
 Paper surface (SOW preview — mimics the .docx):
 - `--paper` `#FBFAF7` · `--paper-ink` `#1A1A1A` · `--paper-muted` `#6B6862` · `--paper-hairline` `#E4E0D8`
 
-Rule: red is the *only* hue. State/badges (OFE vs NEW) are distinguished by fill vs outline,
+Rule: blue is the *only* accent hue. State/badges (OFE vs NEW) are distinguished by fill vs outline,
 never by a second color.
 
 ## Type
@@ -73,6 +73,6 @@ transitions/animations globally (index.css) and skips the load animation
 
 ## Quality floor
 
-Responsive to mobile · visible keyboard focus (red ring on shadcn controls, red outline
+Responsive to mobile · visible keyboard focus (blue ring on shadcn controls, blue outline
 elsewhere) · reduced-motion respected · AA contrast on text (foreground/muted on dark,
 ink/muted on paper all ≥ 4.5:1).
