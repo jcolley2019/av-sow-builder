@@ -50,6 +50,13 @@ export const DEMO_ACCEPT: Record<string, string[]> = {
   "image/webp": [".webp"],
 };
 
+// Example-SOW (style sample) inputs: Word, PDF, or plain text.
+export const STYLE_ACCEPT: Record<string, string[]> = {
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+  "application/pdf": [".pdf"],
+  "text/plain": [".txt"],
+};
+
 /** Read a File to raw base64 (no data: prefix). */
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

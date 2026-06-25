@@ -4,6 +4,7 @@ import cors from "cors";
 import express from "express";
 import type { Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import PizZip from "pizzip";
 import { z } from "zod";
 
 import { callClaude } from "./claude";
@@ -135,6 +136,46 @@ const ROM_SYSTEM =
   'headerLine reads "EOS IT Management Solutions  |  <ProjectNumber>  |  ' +
   '<ProjectName>"; title is "<ProjectNumber>  <ProjectName>"; customer is the ' +
   "client/company name (null if unknown).";
+
+// Match-a-Style (SOW.8): appended to SOW_SYSTEM ONLY when the user opts to match
+// a provided example. It governs voice/structure/detail; the hard rules above win.
+const STYLE_MATCH_DIRECTIVE = `
+
+---
+STYLE MATCH MODE:
+Match the VOICE, SECTION STRUCTURE, and LEVEL OF DETAIL of the STYLE EXAMPLE provided in the user message. The example governs tone, organization, and depth ONLY.
+ALL hard rules above remain in force regardless of the example: name only BOM equipment with the exact manufacturer/model/quantity, never invent gear, OFE/existing stays (never removed), removals only from bom.removals, no pricing or labor, accessory tiering per house-style section 5.2. If the example conflicts with a hard rule, the HARD RULE WINS. Do NOT copy the example's equipment, rooms, quantities, or specific content — only its writing style and structure.`;
+
+// Style analysis: compares an example SOW's WRITING STYLE to EOS house style.
+const STYLE_ANALYSIS_SYSTEM =
+  "You compare the WRITING STYLE of a provided example AV/UC Scope of Work against " +
+  "typical EOS house style. EOS house style: third-person declarative delivery " +
+  "voice (\"EOS will provide and install ...\"), organized by Location/Room then " +
+  "System (Display, Video, Audio, Conferencing, Control, Network, Rack), bold " +
+  "manufacturer+model on first mention, dense signal-flow detail describing what " +
+  "each device does and connects to, and standard exceptions/clarifications " +
+  "boilerplate. Analyze ONLY the voice, section structure, organization, and level " +
+  "of detail — NOT the specific equipment. Return ONLY minified JSON " +
+  "{ differs: boolean, summary: string } where summary is 1-3 sentences on how the " +
+  "example's style differs from (or matches) the house style. No prose, no fences.";
+
+// Dependency check (SOW.9): conservative, suggestions-only review of a BOM for
+// common missing companion items. These are FLAGS to confirm — never auto-added.
+const DEPENDENCY_SYSTEM =
+  "You are an AV systems engineer reviewing a bill of materials for MISSING " +
+  "DEPENDENCIES — common companion items a listed device needs that are NOT in " +
+  "the BOM. Be CONSERVATIVE: only flag genuine, common dependencies you are " +
+  "confident about. Good examples: a codec or PTZ camera with no wall/rack mount " +
+  "listed; a device that needs a power supply / PSU that is not present; a Q-SYS " +
+  "or DSP core that needs a Dante or software license; a display with no mount; a " +
+  "networked-audio device that implies a PoE network switch. Do NOT flag anything " +
+  "speculative, do NOT propose upgrades or extra features, and do NOT invent " +
+  "model numbers you are unsure about. These are FLAGS for a human to confirm — " +
+  "never assume they are needed. Return ONLY a minified JSON array of " +
+  "{ forItem: '<manufacturer model>', location: string|null, suggestion: '<what " +
+  "is likely missing>', candidate: '<a specific candidate model, or \"confirm\" " +
+  "if unsure>', reason: '<one concise sentence>' } — an empty array if nothing is " +
+  "genuinely missing. No prose, no fences.";
 
 // ---------------------------------------------------------------------------
 // Zod schemas (lenient — coerce/recover from model output variance)
@@ -281,6 +322,52 @@ function cleanRom(doc: RomDocT): RomDocT {
     overview: stripMd(doc.overview),
     rooms: doc.rooms.map((r) => ({ name: stripMd(r.name), summary: stripMd(r.summary) })),
   };
+}
+
+const StyleAnalysisSchema = z.object({
+  differs: z.coerce.boolean().catch(true),
+  summary: str,
+});
+
+const DependencyFlagSchema = z.object({
+  forItem: str,
+  location: nstr,
+  suggestion: str,
+  candidate: str,
+  reason: str,
+});
+const DependencyArraySchema = z.array(DependencyFlagSchema);
+
+/** Normalize a possibly-wrapped array (model may return {flags:[...]} etc.). */
+function coerceArray(parsed: unknown): unknown {
+  if (Array.isArray(parsed)) return parsed;
+  if (parsed && typeof parsed === "object") {
+    for (const v of Object.values(parsed as Record<string, unknown>)) {
+      if (Array.isArray(v)) return v;
+    }
+  }
+  return [];
+}
+
+// Extract plain body text from a .docx buffer (word/document.xml only).
+function docxBufferToText(buf: Buffer): string {
+  const zip = new PizZip(buf);
+  const entry = zip.file("word/document.xml");
+  if (!entry) return "";
+  let xml = entry.asText();
+  xml = xml
+    .replace(/<\/w:p>/g, "\n")
+    .replace(/<w:br\s*\/?>/g, "\n")
+    .replace(/<w:tab\s*\/?>/g, "\t");
+  let text = xml.replace(/<[^>]+>/g, "");
+  text = text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#x?[0-9a-fA-F]+;/g, " ");
+  return text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -487,6 +574,94 @@ app.post("/api/extract-removals", async (req: Request, res: Response) => {
   }
 });
 
+// Conservative AV dependency check on a BomDoc (read-only). Suggestions only —
+// nothing is written back; the user confirms each flag.
+app.post("/api/dependency-check", async (req: Request, res: Response) => {
+  let raw = "";
+  try {
+    const bom = (req.body ?? {}).bom ?? {};
+    const user =
+      "BOM to review for missing dependencies (read-only — do NOT modify it; only " +
+      "flag genuine, common companion items that are absent):\n" +
+      JSON.stringify(bom) +
+      "\n\nReturn ONLY the JSON array of dependency flags.";
+    const msg = await callClaude({
+      model: MODEL,
+      maxTokens: 2000,
+      system: DEPENDENCY_SYSTEM,
+      messages: [{ role: "user", content: user }],
+    });
+    raw = responseText(msg);
+    const json = coerceArray(JSON.parse(extractJsonText(raw, "array")));
+    const flags = DependencyArraySchema.parse(json);
+    res.json({ flags });
+  } catch (err) {
+    res.status(200).json({ error: errorMessage(err), raw });
+  }
+});
+
+// Extract plain text from an example SOW (.docx via PizZip, .pdf via the model).
+app.post("/api/extract-text", async (req: Request, res: Response) => {
+  try {
+    const body = req.body ?? {};
+    const kind: string = body.kind;
+    const dataB64: string = body.dataB64 ?? "";
+    if (!dataB64) {
+      res.json({ text: "" });
+      return;
+    }
+    if (kind === "docx") {
+      res.json({ text: docxBufferToText(Buffer.from(dataB64, "base64")) });
+      return;
+    }
+    if (kind === "pdf") {
+      const content: ContentBlock[] = [
+        {
+          type: "text",
+          text: "Extract and return the plain body text of this document exactly as written, in reading order. Return ONLY the text — no JSON, no commentary, no fences.",
+        },
+        {
+          type: "document",
+          source: { type: "base64", media_type: "application/pdf", data: dataB64 },
+        },
+      ];
+      const msg = await callClaude({ model: MODEL, maxTokens: 8000, messages: [{ role: "user", content }] });
+      res.json({ text: responseText(msg) });
+      return;
+    }
+    res.json({ text: "" });
+  } catch (err) {
+    res.status(200).json({ error: errorMessage(err) });
+  }
+});
+
+// Analyze how an example SOW's writing style compares to EOS house style.
+app.post("/api/analyze-style", async (req: Request, res: Response) => {
+  let raw = "";
+  try {
+    const sample = String((req.body ?? {}).sample ?? "");
+    if (!sample.trim()) {
+      res.json({ differs: false, summary: "No example text was provided." });
+      return;
+    }
+    const user =
+      "STYLE EXAMPLE to analyze (assess the writing style only — ignore the specific equipment):\n" +
+      sample.slice(0, 24000);
+    const msg = await callClaude({
+      model: MODEL,
+      maxTokens: 400,
+      system: STYLE_ANALYSIS_SYSTEM,
+      messages: [{ role: "user", content: user }],
+    });
+    raw = responseText(msg);
+    const json = JSON.parse(extractJsonText(raw, "object"));
+    const parsed = StyleAnalysisSchema.parse(json);
+    res.json(parsed);
+  } catch (err) {
+    res.status(200).json({ error: errorMessage(err), raw });
+  }
+});
+
 // Generate a formatted SOW from the reviewed BomDoc + project metadata.
 app.post("/api/generate-sow", async (req: Request, res: Response) => {
   let raw = "";
@@ -499,21 +674,35 @@ app.post("/api/generate-sow", async (req: Request, res: Response) => {
       projectName: bom.projectName ?? null,
     };
 
+    // Match-a-Style: only when the user opts in AND a sample is present. The
+    // house path (default) is byte-identical to before — no regression.
+    const styleSample = typeof body.styleSample === "string" ? body.styleSample : "";
+    const matching = body.styleMode === "match" && styleSample.trim().length > 0;
+    const system = matching ? SOW_SYSTEM + STYLE_MATCH_DIRECTIVE : SOW_SYSTEM;
+    const styleRef = matching ? styleSample.slice(0, 40000) : CENTENE_EXEMPLAR;
+    const styleLabel = matching
+      ? "=== STYLE EXAMPLE — match its voice/structure/detail, do NOT copy its equipment or content ==="
+      : "=== STYLE REFERENCE ONLY — do not copy any content; match the voice, structure, sentence engine, and level of technical detail ===";
+    const styleEnd = matching ? "=== END STYLE EXAMPLE ===" : "=== END STYLE REFERENCE ===";
+
     const user =
       "BOM (authoritative — the ONLY source of equipment, quantities, and removals). " +
       "bom.removals is the ONLY source of removed equipment:\n" +
       JSON.stringify(bom) +
       "\n\nProject metadata:\n" +
       JSON.stringify(meta) +
-      "\n\n=== STYLE REFERENCE ONLY — do not copy any content; match the voice, " +
-      "structure, sentence engine, and level of technical detail ===\n" +
-      CENTENE_EXEMPLAR +
-      "\n=== END STYLE REFERENCE ===\n\nReturn ONLY the SowDoc JSON for THIS project's BOM.";
+      "\n\n" +
+      styleLabel +
+      "\n" +
+      styleRef +
+      "\n" +
+      styleEnd +
+      "\n\nReturn ONLY the SowDoc JSON for THIS project's BOM.";
 
     const msg = await callClaude({
       model: "claude-opus-4-8",
       maxTokens: 12000,
-      system: SOW_SYSTEM,
+      system,
       messages: [{ role: "user", content: user }],
     });
     raw = responseText(msg);

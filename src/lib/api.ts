@@ -1,9 +1,21 @@
 import type { BomDoc, RemovalItem, RomDoc, SowDoc } from "./types";
 import {
   classifyFile,
+  extOf,
   fileToBase64,
   spreadsheetToText,
 } from "./files";
+
+export type StyleMode = "house" | "match";
+export type StyleAnalysis = { differs: boolean; summary: string };
+
+export type DependencyFlag = {
+  forItem: string;
+  location: string | null;
+  suggestion: string;
+  candidate: string;
+  reason: string;
+};
 
 // Request payloads (JSON; no multipart) and response shapes for the two
 // extraction endpoints. Both endpoints return { error, raw } on failure.
@@ -119,12 +131,40 @@ export function extractRemovals(
   );
 }
 
-/** Generate the Scope of Work from the reviewed BomDoc + project metadata. */
+/** Generate the Scope of Work from the reviewed BomDoc + project metadata.
+ *  Optionally match the voice/structure of a provided example SOW. */
 export function generateSow(
   bom: BomDoc,
   meta: SowMeta,
+  style?: { styleSample?: string; styleMode?: StyleMode },
 ): Promise<SowDoc | ExtractError> {
-  return postJson<SowDoc | ExtractError>("/api/generate-sow", { bom, meta });
+  return postJson<SowDoc | ExtractError>("/api/generate-sow", { bom, meta, ...style });
+}
+
+// --- Match-a-Style (example SOW) -------------------------------------------
+
+/** Extract plain text from an example SOW: .txt client-side, .docx/.pdf server. */
+export async function extractStyleText(file: File): Promise<string> {
+  const ext = extOf(file.name);
+  if (ext === "txt" || file.type === "text/plain") {
+    return (await file.text()).trim();
+  }
+  if (ext === "docx" || ext === "pdf") {
+    const res = await postJson<{ text: string } | ExtractError>("/api/extract-text", {
+      kind: ext,
+      filename: file.name,
+      dataB64: await fileToBase64(file),
+    });
+    if (isError(res)) throw new Error(res.error);
+    return (res.text ?? "").trim();
+  }
+  // Best effort for unknown types: try reading as text.
+  return (await file.text()).trim();
+}
+
+/** Summarize how an example's writing style compares to EOS house style. */
+export function analyzeStyle(sample: string): Promise<StyleAnalysis | ExtractError> {
+  return postJson<StyleAnalysis | ExtractError>("/api/analyze-style", { sample });
 }
 
 /** Generate a budgetary ROM scope summary from the same BomDoc + metadata. */
@@ -133,4 +173,14 @@ export function generateRom(
   meta: SowMeta,
 ): Promise<RomDoc | ExtractError> {
   return postJson<RomDoc | ExtractError>("/api/generate-rom", { bom, meta });
+}
+
+/** Conservative AV dependency check (read-only): suggestions to confirm. */
+export function dependencyCheck(
+  bom: BomDoc,
+): Promise<{ flags: DependencyFlag[] } | ExtractError> {
+  return postJson<{ flags: DependencyFlag[] } | ExtractError>(
+    "/api/dependency-check",
+    { bom },
+  );
 }

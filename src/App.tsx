@@ -12,11 +12,14 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { BomIntake } from "@/components/BomIntake";
 import { BomReview } from "@/components/BomReview";
 import { RemovalsPanel } from "@/components/RemovalsPanel";
+import { StylePanel } from "@/components/StylePanel";
 import { SowPreview } from "@/components/SowPreview";
 import { RomPreview } from "@/components/RomPreview";
+import { CompareView } from "@/components/CompareView";
 import { RawError } from "@/components/RawError";
 import { Model } from "@/components/Model";
 import { cn } from "@/lib/utils";
@@ -24,20 +27,26 @@ import { useBomEditor } from "@/lib/useBomEditor";
 import { allModels, coverage } from "@/lib/sow";
 import { downloadRomDocx, downloadSowDocx } from "@/lib/docx";
 import {
+  analyzeStyle,
   bomRequestFromFile,
+  dependencyCheck,
   extractBom,
   extractRemovals,
+  extractStyleText,
   generateRom,
   generateSow,
   isError,
   removalsDrawingFromFile,
   type BomRequest,
+  type DependencyFlag,
   type ExtractError,
   type SowMeta,
+  type StyleAnalysis,
+  type StyleMode,
 } from "@/lib/api";
-import type { RomDoc, SowDoc } from "@/lib/types";
+import type { BomDoc, RomDoc, SowDoc } from "@/lib/types";
 
-type OutputMode = "sow" | "rom";
+type OutputMode = "sow" | "rom" | "compare";
 
 function App() {
   const editor = useBomEditor();
@@ -63,6 +72,23 @@ function App() {
   const [sowBusy, setSowBusy] = useState(false);
   const [sowError, setSowError] = useState<ExtractError | null>(null);
   const [elapsed, setElapsed] = useState(0);
+
+  // Match-a-Style (SOW mode only): optional example SOW + chosen style mode.
+  const [styleSample, setStyleSample] = useState<string | null>(null);
+  const [styleFilename, setStyleFilename] = useState<string | null>(null);
+  const [styleMode, setStyleMode] = useState<StyleMode>("house");
+  const [styleAnalysis, setStyleAnalysis] = useState<StyleAnalysis | null>(null);
+  const [styleBusy, setStyleBusy] = useState(false);
+  const [styleError, setStyleError] = useState<ExtractError | null>(null);
+
+  // Compare mode: a second (read-only) equipment list + a dependency check.
+  const [compareBom, setCompareBom] = useState<BomDoc | null>(null);
+  const [compareFilename, setCompareFilename] = useState<string | null>(null);
+  const [compareBusy, setCompareBusy] = useState(false);
+  const [compareError, setCompareError] = useState<ExtractError | null>(null);
+  const [depFlags, setDepFlags] = useState<DependencyFlag[] | null>(null);
+  const [depBusy, setDepBusy] = useState(false);
+  const [depError, setDepError] = useState<ExtractError | null>(null);
 
   const showReview = editor.core !== null;
   const activeDoc = mode === "rom" ? rom : sow;
@@ -119,6 +145,7 @@ function App() {
       setSow(null);
       setRom(null);
       setSowError(null);
+      setDepFlags(null); // dependency flags are stale against a new BOM
     } catch (e) {
       setBomError({ error: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -195,7 +222,10 @@ function App() {
         }
         setRom(data);
       } else {
-        const data = await generateSow(editor.doc, meta);
+        const data = await generateSow(editor.doc, meta, {
+          styleSample: styleSample ?? undefined,
+          styleMode,
+        });
         if (isError(data)) {
           setSowError(data);
           return;
@@ -206,6 +236,113 @@ function App() {
       setSowError({ error: e instanceof Error ? e.message : String(e) });
     } finally {
       setSowBusy(false);
+    }
+  }
+
+  // --- Match-a-Style: ingest an example, then analyze its writing style ----
+  async function ingestStyle(source: { file?: File; text?: string }) {
+    setStyleError(null);
+    setStyleAnalysis(null);
+    setStyleBusy(true);
+    setStyleSample(null);
+    setStyleFilename(null);
+    try {
+      let text = (source.text ?? "").trim();
+      const filename = source.file ? source.file.name : "Pasted example";
+      if (source.file) text = (await extractStyleText(source.file)).trim();
+      if (!text) {
+        setStyleError({ error: "No text could be read from that example." });
+        return;
+      }
+      setStyleSample(text);
+      setStyleFilename(filename);
+      const a = await analyzeStyle(text);
+      if (isError(a)) setStyleError(a);
+      else setStyleAnalysis(a);
+    } catch (e) {
+      setStyleError({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setStyleBusy(false);
+    }
+  }
+
+  const handleStyleFiles = (files: File[]) => {
+    if (files[0]) void ingestStyle({ file: files[0] });
+  };
+  const handleStylePaste = (text: string) => {
+    if (text.trim()) void ingestStyle({ text });
+  };
+  function clearStyle() {
+    setStyleSample(null);
+    setStyleFilename(null);
+    setStyleAnalysis(null);
+    setStyleError(null);
+    setStyleBusy(false);
+    setStyleMode("house");
+  }
+
+  // --- Compare: extract a second list (read-only) + dependency check -------
+  async function ingestCompare(req: BomRequest, filename: string) {
+    setCompareError(null);
+    setCompareBusy(true);
+    try {
+      const data = await extractBom(req);
+      if (isError(data)) {
+        setCompareError(data);
+        return;
+      }
+      if (!data.locations || data.locations.length === 0) {
+        setCompareError({
+          error: "No equipment was extracted from that list. Check the file or text.",
+          raw: JSON.stringify(data, null, 2),
+        });
+        return;
+      }
+      setCompareBom({ ...data, removals: [] });
+      setCompareFilename(filename);
+    } catch (e) {
+      setCompareError({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setCompareBusy(false);
+    }
+  }
+
+  async function handleCompareFiles(files: File[]) {
+    const file = files[0];
+    if (!file) return;
+    try {
+      const req = await bomRequestFromFile(file);
+      await ingestCompare(req, file.name);
+    } catch (e) {
+      setCompareError({ error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  const handleComparePaste = (text: string) => {
+    if (text.trim()) void ingestCompare({ kind: "text", text }, "Pasted list");
+  };
+  function clearCompare() {
+    setCompareBom(null);
+    setCompareFilename(null);
+    setCompareError(null);
+    setCompareBusy(false);
+  }
+
+  async function runDependencyCheck() {
+    if (!editor.doc) return;
+    setDepError(null);
+    setDepBusy(true);
+    try {
+      const data = await dependencyCheck(editor.doc);
+      if (isError(data)) {
+        setDepError(data);
+        setDepFlags(null);
+        return;
+      }
+      setDepFlags(data.flags);
+    } catch (e) {
+      setDepError({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setDepBusy(false);
     }
   }
 
@@ -220,6 +357,10 @@ function App() {
     setRom(null);
     setSowError(null);
     setMode("sow");
+    clearStyle();
+    clearCompare();
+    setDepFlags(null);
+    setDepError(null);
   }
 
   // Shared guided-removal props for both demo intakes (intake + review).
@@ -321,10 +462,45 @@ function App() {
 
                 <RemovalsPanel editor={editor} demo={demo} />
 
-                {/* Output mode toggle + generate action + live status */}
-                <div className="space-y-3 border-t border-border pt-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="eyebrow">Output mode</span>
+                {/* Match-a-Style — Delivery SOW mode only. */}
+                {mode === "sow" && (
+                  <StylePanel
+                    sample={styleSample}
+                    filename={styleFilename}
+                    styleMode={styleMode}
+                    analysis={styleAnalysis}
+                    busy={styleBusy}
+                    error={styleError}
+                    onFiles={handleStyleFiles}
+                    onPaste={handleStylePaste}
+                    onClear={clearStyle}
+                    onModeChange={setStyleMode}
+                  />
+                )}
+
+              </div>
+            )}
+          </motion.section>
+
+          {/* RIGHT — output pane: a pinned control card (mode toggle + actions)
+              over the framed document that scrolls within the pane. */}
+          <motion.section {...load} className="flex min-w-0 flex-col lg:min-h-0">
+            <div className="space-y-3 pt-6 lg:shrink-0">
+              <span className="eyebrow">
+                {mode === "compare"
+                  ? "Output · Compare"
+                  : mode === "rom"
+                    ? "Output · ROM Summary"
+                    : "Output · Scope of Work"}
+              </span>
+
+              {/* Control card — mirrors the input pane's framed cards. */}
+              <Card>
+                <CardContent className="space-y-3 p-4">
+                  <span className="eyebrow block">
+                    {mode === "compare" ? "Reconcile" : "Generate"}
+                  </span>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="inline-flex rounded-md border border-border p-0.5">
                       <button
                         type="button"
@@ -342,8 +518,62 @@ function App() {
                       >
                         ROM Summary
                       </button>
+                      <button
+                        type="button"
+                        aria-pressed={mode === "compare"}
+                        className={segClass(mode === "compare")}
+                        onClick={() => setMode("compare")}
+                      >
+                        Compare
+                      </button>
                     </div>
+                    {mode !== "compare" && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {activeDoc && (
+                          <Button variant="outline" size="sm" onClick={handleDownload}>
+                            <Download /> Download .docx
+                          </Button>
+                        )}
+                        <Button
+                          onClick={handleGenerate}
+                          disabled={sowBusy}
+                          className="min-w-[200px]"
+                        >
+                          {sowBusy ? (
+                            <>
+                              <Loader2 className="animate-spin" /> Generating… {elapsed}s
+                            </>
+                          ) : activeDoc ? (
+                            <>
+                              <RefreshCw /> Regenerate
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles />{" "}
+                              {mode === "rom" ? "Generate ROM Summary" : "Generate Scope of Work"}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
+
+                  <div className="text-sm text-muted-foreground" aria-live="polite">
+                    {mode === "compare"
+                      ? "Reconcile your BOM against a client/vendor list, and flag missing dependencies below."
+                      : sowBusy
+                        ? `Generating… (${elapsed}s elapsed)`
+                        : activeDoc
+                          ? `Edit the ${modeLabel} in the document below, or regenerate.`
+                          : `Generate the ${modeLabel} from the reviewed BOM.`}
+                  </div>
+
+                  {sowError && (
+                    <RawError
+                      error={sowError}
+                      label={mode === "rom" ? "ROM generation failed" : "SOW generation failed"}
+                    />
+                  )}
 
                   {/* Coverage guardrail — Delivery SOW mode only */}
                   {mode === "sow" && cover && cover.total > 0 && !sowBusy && (
@@ -376,76 +606,54 @@ function App() {
                       </div>
                     )
                   )}
+                </CardContent>
+              </Card>
+            </div>
 
-                  {sowError && (
-                    <RawError
-                      error={sowError}
-                      label={mode === "rom" ? "ROM generation failed" : "SOW generation failed"}
-                    />
-                  )}
-
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-sm text-muted-foreground" aria-live="polite">
-                      {sowBusy
-                        ? `Generating… (${elapsed}s elapsed)`
-                        : activeDoc
-                          ? `Edit the ${modeLabel} in the paper pane, or regenerate.`
-                          : `Generate the ${modeLabel} from the reviewed BOM.`}
-                    </div>
-                    <Button
-                      onClick={handleGenerate}
-                      disabled={sowBusy}
-                      className="min-w-[210px]"
-                    >
-                      {sowBusy ? (
-                        <>
-                          <Loader2 className="animate-spin" /> Generating… {elapsed}s
-                        </>
-                      ) : activeDoc ? (
-                        <>
-                          <RefreshCw /> Regenerate
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles />{" "}
-                          {mode === "rom" ? "Generate ROM Summary" : "Generate Scope of Work"}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </motion.section>
-
-          {/* RIGHT — SOW preview on the paper surface */}
-          <motion.section
-            {...load}
-            className="min-w-0 space-y-4 py-6 lg:min-h-0 lg:overflow-y-auto lg:pr-2"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="eyebrow">
-                {mode === "rom" ? "Output · ROM Summary" : "Output · Scope of Work"}
-              </span>
-              {activeDoc ? (
-                <Button size="sm" onClick={handleDownload}>
-                  <Download /> Download .docx
-                </Button>
+            {/* Scrolling body — Compare view, or the framed document sheet. */}
+            <div className="pb-6 pt-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-2">
+              {mode === "compare" ? (
+                editor.doc ? (
+                  <CompareView
+                    primary={editor.doc}
+                    compareBom={compareBom}
+                    compareFilename={compareFilename}
+                    compareBusy={compareBusy}
+                    compareError={compareError}
+                    onCompareFiles={handleCompareFiles}
+                    onComparePaste={handleComparePaste}
+                    onClearCompare={clearCompare}
+                    depFlags={depFlags}
+                    depBusy={depBusy}
+                    depError={depError}
+                    onRunDependencyCheck={runDependencyCheck}
+                  />
+                ) : (
+                  <Card>
+                    <CardContent className="p-6 text-sm text-muted-foreground">
+                      Extract a BOM on the left to start comparing.
+                    </CardContent>
+                  </Card>
+                )
               ) : (
-                <span className="eyebrow text-muted-foreground">.docx preview</span>
+                <Card>
+                  <CardContent className="space-y-2 p-3 sm:p-4">
+                    <span className="eyebrow block">Document · .docx preview</span>
+                    {mode === "rom" ? (
+                      <RomPreview rom={rom} meta={meta} busy={sowBusy} onChange={setRom} />
+                    ) : (
+                      <SowPreview
+                        sow={sow}
+                        meta={meta}
+                        models={models}
+                        busy={sowBusy}
+                        onChange={setSow}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
               )}
             </div>
-            {mode === "rom" ? (
-              <RomPreview rom={rom} meta={meta} busy={sowBusy} onChange={setRom} />
-            ) : (
-              <SowPreview
-                sow={sow}
-                meta={meta}
-                models={models}
-                busy={sowBusy}
-                onChange={setSow}
-              />
-            )}
           </motion.section>
         </div>
       </main>
