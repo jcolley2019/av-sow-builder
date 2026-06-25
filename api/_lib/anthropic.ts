@@ -1,7 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import dotenv from "dotenv";
 
-// Load environment variables from .env.local (ANTHROPIC_API_KEY=...).
+// Local dev (Express sidecar via tsx) reads the key from .env.local. On Vercel
+// the key comes from the project's Environment Variables, so .env.local is
+// absent and this call is a harmless no-op (dotenv never overrides real env).
 dotenv.config({ path: ".env.local" });
 
 /**
@@ -16,7 +18,7 @@ if (!apiKey) {
   // Don't throw at import time — the health route should still work without a key.
   // Routes that actually call Claude will surface a clear error instead.
   console.warn(
-    "[claude] ANTHROPIC_API_KEY is not set. Add it to .env.local before calling /api/extract-bom or /api/generate-sow.",
+    "[claude] ANTHROPIC_API_KEY is not set. Set it in .env.local (local dev) or in the Vercel project's Environment Variables.",
   );
 }
 
@@ -40,7 +42,7 @@ export async function callClaude({
 }: CallClaudeOptions): Promise<Anthropic.Message> {
   if (!apiKey) {
     throw new Error(
-      "ANTHROPIC_API_KEY is not set. Add it to .env.local at the project root.",
+      "ANTHROPIC_API_KEY is not set. Set it in .env.local (local) or the Vercel Environment Variables (deployed).",
     );
   }
 

@@ -40,6 +40,7 @@
     "@types/node": "^26.0.0",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
+    "@vercel/node": "^5.8.21",
     "@vitejs/plugin-react": "^6.0.3",
     "autoprefixer": "^10.5.1",
     "concurrently": "^10.0.3",
