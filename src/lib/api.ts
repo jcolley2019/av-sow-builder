@@ -1,4 +1,4 @@
-import type { BomDoc, RemovalItem, SowDoc } from "./types";
+import type { BomDoc, RemovalItem, RomDoc, SowDoc } from "./types";
 import {
   classifyFile,
   fileToBase64,
@@ -125,4 +125,12 @@ export function generateSow(
   meta: SowMeta,
 ): Promise<SowDoc | ExtractError> {
   return postJson<SowDoc | ExtractError>("/api/generate-sow", { bom, meta });
+}
+
+/** Generate a budgetary ROM scope summary from the same BomDoc + metadata. */
+export function generateRom(
+  bom: BomDoc,
+  meta: SowMeta,
+): Promise<RomDoc | ExtractError> {
+  return postJson<RomDoc | ExtractError>("/api/generate-rom", { bom, meta });
 }

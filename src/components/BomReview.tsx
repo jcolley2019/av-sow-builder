@@ -74,6 +74,14 @@ export function BomReview({ editor }: { editor: BomEditor }) {
       ? activeRoom
       : "all";
 
+  // Rooms to render, each carrying its ORIGINAL index so every edit
+  // (rename/remove/add system/item) still targets the right location in the
+  // BomDoc. Selecting a tab filters this list; "All" shows everything. This is
+  // a VIEW filter only — the BomDoc and what generation receives are unchanged.
+  const visibleRooms = core.locations
+    .map((room, ri) => ({ room, ri }))
+    .filter(({ ri }) => active === "all" || ri === active);
+
   const tabClass = (on: boolean) =>
     cn(
       "shrink-0 rounded-md px-2.5 py-1 font-mono text-xs transition-colors",
@@ -92,17 +100,12 @@ export function BomReview({ editor }: { editor: BomEditor }) {
           <CardDescription>Edit any field — these flow into the SOW header.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {/* Order: Customer Name, Project Number, Project Name. */}
           <Field
-            label="Customer"
+            label="Customer Name"
             value={core.customer ?? ""}
-            placeholder="Customer name"
+            placeholder="Customer / client name"
             onChange={(v) => editor.setMeta({ customer: v || null })}
-          />
-          <Field
-            label="Project Name"
-            value={core.projectName ?? ""}
-            placeholder="Project name"
-            onChange={(v) => editor.setMeta({ projectName: v || null })}
           />
           <Field
             label="Project Number"
@@ -110,6 +113,12 @@ export function BomReview({ editor }: { editor: BomEditor }) {
             placeholder="Project #"
             inputClassName="font-mono"
             onChange={(v) => editor.setMeta({ projectNumber: v || null })}
+          />
+          <Field
+            label="Project Name"
+            value={core.projectName ?? ""}
+            placeholder="Project name"
+            onChange={(v) => editor.setMeta({ projectName: v || null })}
           />
         </CardContent>
       </Card>
@@ -165,13 +174,14 @@ export function BomReview({ editor }: { editor: BomEditor }) {
               </div>
 
               <Accordion
+                // Remount on filter change so the visible room(s) start expanded
+                // and no stale open-state lingers from a previous selection.
+                key={active === "all" ? "all" : `room-${active}`}
                 type="multiple"
-                defaultValue={core.locations.map((_, i) => `loc-${i}`)}
+                defaultValue={visibleRooms.map(({ ri }) => `loc-${ri}`)}
                 className="w-full"
               >
-                {core.locations.map((room, ri) => {
-                  // Render only the active room (preserve original index `ri`).
-                  if (active !== "all" && active !== ri) return null;
+                {visibleRooms.map(({ room, ri }) => {
                   return (
                     <AccordionItem key={ri} value={`loc-${ri}`}>
                       <AccordionTrigger>

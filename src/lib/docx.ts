@@ -11,7 +11,7 @@ import {
   convertInchesToTwip,
 } from "docx";
 
-import type { SowDoc, SowSection } from "./types";
+import type { RomDoc, SowDoc, SowSection } from "./types";
 
 // Render a (possibly edited) SowDoc to a Word .docx matching the EOS SOW
 // template: US Letter, 0.5in margins, Calibri 11pt body, a running header on
@@ -192,7 +192,120 @@ export async function downloadSowDocx(
   models: string[],
   filename: string,
 ): Promise<void> {
-  const blob = await sowToBlob(sow, models);
+  await triggerDownload(await sowToBlob(sow, models), filename);
+}
+
+// ---------------------------------------------------------------------------
+// ROM (budgetary scope summary) export — same page/header/footer guarantees.
+// ---------------------------------------------------------------------------
+
+function runningHeader(text: string): Header {
+  return new Header({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.LEFT,
+        children: [new TextRun({ text: sanitize(text), size: PT(9) })],
+      }),
+    ],
+  });
+}
+
+function pageFooter(): Footer {
+  return new Footer({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [
+          new TextRun({ text: "Page ", size: PT(9) }),
+          new TextRun({ children: [PageNumber.CURRENT], size: PT(9) }),
+          new TextRun({ text: " of ", size: PT(9) }),
+          new TextRun({ children: [PageNumber.TOTAL_PAGES], size: PT(9) }),
+        ],
+      }),
+    ],
+  });
+}
+
+const PAGE_PROPERTIES = {
+  page: {
+    size: { width: convertInchesToTwip(8.5), height: convertInchesToTwip(11) },
+    margin: {
+      top: convertInchesToTwip(0.5),
+      right: convertInchesToTwip(0.5),
+      bottom: convertInchesToTwip(0.5),
+      left: convertInchesToTwip(0.5),
+      header: convertInchesToTwip(0.25),
+      footer: convertInchesToTwip(0.25),
+    },
+  },
+};
+
+/** Build the ROM summary docx (pure — no DOM). */
+export function buildRomDocument(rom: RomDoc): Document {
+  const body: Paragraph[] = [];
+
+  body.push(
+    new Paragraph({
+      spacing: { after: 80 },
+      children: [new TextRun({ text: sanitize(rom.title), bold: true, size: PT(16) })],
+    }),
+  );
+
+  if (rom.customer) {
+    body.push(
+      new Paragraph({
+        spacing: { after: 200 },
+        children: [
+          new TextRun({ text: sanitize(`Prepared for ${rom.customer}`), bold: true, size: PT(12) }),
+        ],
+      }),
+    );
+  }
+
+  body.push(
+    new Paragraph({
+      spacing: { after: 120 },
+      children: [new TextRun({ text: sanitize(rom.overview), size: PT(11) })],
+    }),
+  );
+
+  for (const room of rom.rooms) {
+    body.push(
+      new Paragraph({
+        spacing: { before: 220, after: 60 },
+        keepNext: true,
+        border: { bottom: { style: BorderStyle.SINGLE, size: 6, space: 2, color: "999999" } },
+        children: [new TextRun({ text: sanitize(room.name), bold: true, size: PT(13) })],
+      }),
+    );
+    body.push(
+      new Paragraph({
+        spacing: { after: 120 },
+        children: [new TextRun({ text: sanitize(room.summary), size: PT(11) })],
+      }),
+    );
+  }
+
+  return new Document({
+    creator: "EOS SOW Generator",
+    title: sanitize(rom.title),
+    styles: { default: { document: { run: { font: "Calibri", size: PT(11) } } } },
+    sections: [
+      {
+        properties: PAGE_PROPERTIES,
+        headers: { default: runningHeader(rom.headerLine) },
+        footers: { default: pageFooter() },
+        children: body,
+      },
+    ],
+  });
+}
+
+export function romToBlob(rom: RomDoc): Promise<Blob> {
+  return Packer.toBlob(buildRomDocument(rom));
+}
+
+async function triggerDownload(blob: Blob, filename: string): Promise<void> {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -201,4 +314,8 @@ export async function downloadSowDocx(
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function downloadRomDocx(rom: RomDoc, filename: string): Promise<void> {
+  await triggerDownload(await romToBlob(rom), filename);
 }

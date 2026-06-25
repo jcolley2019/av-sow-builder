@@ -32,6 +32,13 @@ const BOM_SYSTEM =
   "invent equipment. 'ofe' is true when a line is shown as existing / " +
   "owner-furnished / to-be-reused — meaning it STAYS in the system; otherwise " +
   "false. Do NOT mark anything as removed; removals are not part of the BOM. " +
+  "Capture the CUSTOMER / CLIENT / COMPANY the work is for: look ANYWHERE in the " +
+  "document — cover page, title block, document header or footer, logo or company " +
+  "text, and labels such as 'Customer:', 'Client:', 'Company:', 'Sold To:', or " +
+  "'Prepared for:'. The customer name is usually on the cover/title, NOT in the " +
+  "by-system line items. Put it in 'customer'; if it genuinely does not appear " +
+  "anywhere, leave customer null — never invent it. projectName and projectNumber " +
+  "likewise come from the cover / title block. " +
   "Return ONLY valid minified JSON for { customer, projectName, projectNumber, " +
   "locations }, no prose, no fences.";
 
@@ -62,6 +69,9 @@ const BOM_SHAPE =
   '{"customer":string|null,"projectName":string|null,"projectNumber":string|null,' +
   '"locations":[{"name":string,"systems":[{"name":string,"items":[' +
   '{"qty":number,"manufacturer":string,"model":string,"description":string,"ofe":boolean}]}]}]}\n' +
+  "customer is the client/company the work is for (from the cover/title/header — " +
+  "not a line item); null only if truly absent. projectName and projectNumber " +
+  "come from the title block. " +
   "Group every line item under its Location (room/space) and System. " +
   "qty is a number; ofe is a boolean (true only when existing/owner-furnished/reused).";
 
@@ -100,6 +110,31 @@ HARD GENERATION RULES (in addition to the house style above):
 
 const SOW_SYSTEM =
   (HOUSE_STYLE || "You write formal AV/UC delivery Scopes of Work.") + SOW_HARD_RULES;
+
+// ROM = Rough Order of Magnitude budgetary scope summary (a separate, short
+// output mode). NOT a quote, NOT binding; no pricing/dollars/labor/model numbers.
+const ROM_SYSTEM =
+  "You write a concise budgetary ROM (Rough Order of Magnitude) scope summary " +
+  "for an AV/UC project in EOS's professional voice. A ROM is for EARLY CLIENT " +
+  "BUDGETING — it is NOT a quote and NOT binding. It contains NO pricing, NO " +
+  "dollar figures, NO labor, and NO part or model numbers. " +
+  "Write the 'overview' as ONE paragraph naming the customer, the project, and " +
+  "the number of spaces, and stating that this is a rough-order-of-magnitude " +
+  "budgetary scope summary for early planning, subject to detailed design. " +
+  "Then write ONE short blurb of 2-4 sentences PER location (a 'rooms' entry), " +
+  "summarizing in plain English the SYSTEM CATEGORIES that room receives for a " +
+  "complete, working system. Map BOM equipment to CATEGORIES ONLY — display, " +
+  "projector, ceiling/table microphone, loudspeakers, DSP / audio processor, " +
+  "amplifier, wireless presentation, video conferencing / codec, camera, " +
+  "switching / distribution, control, rack / power. Do NOT list model numbers, " +
+  "manufacturers, or accessory quantities. Existing / OFE / reused equipment may " +
+  "be noted as integrated or retained — never as removed. " +
+  "Return ONLY valid minified JSON, no prose, no fences, matching this shape: " +
+  '{"headerLine":string,"title":string,"customer":string|null,"overview":string,' +
+  '"rooms":[{"name":string,"summary":string}]}. ' +
+  'headerLine reads "EOS IT Management Solutions  |  <ProjectNumber>  |  ' +
+  '<ProjectName>"; title is "<ProjectNumber>  <ProjectName>"; customer is the ' +
+  "client/company name (null if unknown).";
 
 // ---------------------------------------------------------------------------
 // Zod schemas (lenient — coerce/recover from model output variance)
@@ -224,6 +259,27 @@ function cleanSow(doc: SowDocT): SowDocT {
           : { ...b, text: stripMd(b.text) },
       ),
     })),
+  };
+}
+
+// ROM (budgetary scope summary) schema + cleanup.
+const RomRoomSchema = z.object({ name: str, summary: str });
+const RomDocSchema = z.object({
+  headerLine: str,
+  title: str,
+  customer: nstr,
+  overview: str,
+  rooms: z.array(RomRoomSchema).catch([]),
+});
+type RomDocT = z.infer<typeof RomDocSchema>;
+
+function cleanRom(doc: RomDocT): RomDocT {
+  return {
+    headerLine: stripMd(doc.headerLine),
+    title: stripMd(doc.title),
+    customer: doc.customer == null ? null : stripMd(doc.customer),
+    overview: stripMd(doc.overview),
+    rooms: doc.rooms.map((r) => ({ name: stripMd(r.name), summary: stripMd(r.summary) })),
   };
 }
 
@@ -463,6 +519,41 @@ app.post("/api/generate-sow", async (req: Request, res: Response) => {
     raw = responseText(msg);
     const json = JSON.parse(extractJsonText(raw, "object"));
     const parsed = cleanSow(SowDocSchema.parse(json));
+    res.json(parsed);
+  } catch (err) {
+    res.status(200).json({ error: errorMessage(err), raw });
+  }
+});
+
+// Generate a budgetary ROM scope summary from the same reviewed BomDoc + meta.
+app.post("/api/generate-rom", async (req: Request, res: Response) => {
+  let raw = "";
+  try {
+    const body = req.body ?? {};
+    const bom = body.bom ?? {};
+    const meta = body.meta ?? {
+      customer: bom.customer ?? null,
+      projectNumber: bom.projectNumber ?? null,
+      projectName: bom.projectName ?? null,
+    };
+
+    const user =
+      "BOM (map equipment to SYSTEM CATEGORIES only — never quote models, " +
+      "manufacturers, quantities, or pricing):\n" +
+      JSON.stringify(bom) +
+      "\n\nProject metadata:\n" +
+      JSON.stringify(meta) +
+      "\n\nReturn ONLY the RomDoc JSON for THIS project.";
+
+    const msg = await callClaude({
+      model: "claude-opus-4-8",
+      maxTokens: 4000,
+      system: ROM_SYSTEM,
+      messages: [{ role: "user", content: user }],
+    });
+    raw = responseText(msg);
+    const json = JSON.parse(extractJsonText(raw, "object"));
+    const parsed = cleanRom(RomDocSchema.parse(json));
     res.json(parsed);
   } catch (err) {
     res.status(200).json({ error: errorMessage(err), raw });

@@ -60,3 +60,13 @@ export type SowDoc = {
   basisStatement: string | null;
   sections: SowSection[];
 };
+
+// SOW.7: the alternate output mode — a pricing-free budgetary ROM / scope
+// summary (one overview paragraph + a short blurb per room).
+export type RomDoc = {
+  headerLine: string;
+  title: string;
+  customer: string | null;
+  overview: string;
+  rooms: { name: string; summary: string }[];
+};

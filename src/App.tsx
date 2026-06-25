@@ -16,15 +16,18 @@ import { BomIntake } from "@/components/BomIntake";
 import { BomReview } from "@/components/BomReview";
 import { RemovalsPanel } from "@/components/RemovalsPanel";
 import { SowPreview } from "@/components/SowPreview";
+import { RomPreview } from "@/components/RomPreview";
 import { RawError } from "@/components/RawError";
 import { Model } from "@/components/Model";
+import { cn } from "@/lib/utils";
 import { useBomEditor } from "@/lib/useBomEditor";
 import { allModels, coverage } from "@/lib/sow";
-import { downloadSowDocx } from "@/lib/docx";
+import { downloadRomDocx, downloadSowDocx } from "@/lib/docx";
 import {
   bomRequestFromFile,
   extractBom,
   extractRemovals,
+  generateRom,
   generateSow,
   isError,
   removalsDrawingFromFile,
@@ -32,7 +35,9 @@ import {
   type ExtractError,
   type SowMeta,
 } from "@/lib/api";
-import type { SowDoc } from "@/lib/types";
+import type { RomDoc, SowDoc } from "@/lib/types";
+
+type OutputMode = "sow" | "rom";
 
 function App() {
   const editor = useBomEditor();
@@ -49,13 +54,18 @@ function App() {
   const [demoText, setDemoText] = useState("");
   const [demoItems, setDemoItems] = useState<string[]>([]);
 
-  // SOW generation
+  // Output generation. `sow` and `rom` are kept independently so toggling modes
+  // never loses either. sowBusy/sowError are the SHARED generation status (only
+  // one mode generates at a time).
+  const [mode, setMode] = useState<OutputMode>("sow");
   const [sow, setSow] = useState<SowDoc | null>(null);
+  const [rom, setRom] = useState<RomDoc | null>(null);
   const [sowBusy, setSowBusy] = useState(false);
   const [sowError, setSowError] = useState<ExtractError | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
   const showReview = editor.core !== null;
+  const activeDoc = mode === "rom" ? rom : sow;
 
   const itemCount =
     editor.core?.locations.reduce(
@@ -107,6 +117,7 @@ function App() {
       }
       editor.initFromBom(data);
       setSow(null);
+      setRom(null);
       setSowError(null);
     } catch (e) {
       setBomError({ error: e instanceof Error ? e.message : String(e) });
@@ -169,19 +180,28 @@ function App() {
     void submitRemovals(null);
   }
 
-  // --- SOW generation ------------------------------------------------------
+  // --- Output generation (SOW or ROM, per active mode) ---------------------
   async function handleGenerate() {
     if (!editor.doc || !meta) return;
     setSowError(null);
     setSowBusy(true);
     setElapsed(0);
     try {
-      const data = await generateSow(editor.doc, meta);
-      if (isError(data)) {
-        setSowError(data);
-        return;
+      if (mode === "rom") {
+        const data = await generateRom(editor.doc, meta);
+        if (isError(data)) {
+          setSowError(data);
+          return;
+        }
+        setRom(data);
+      } else {
+        const data = await generateSow(editor.doc, meta);
+        if (isError(data)) {
+          setSowError(data);
+          return;
+        }
+        setSow(data);
       }
-      setSow(data);
     } catch (e) {
       setSowError({ error: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -197,7 +217,9 @@ function App() {
     setDemoText("");
     setDemoItems([]);
     setSow(null);
+    setRom(null);
     setSowError(null);
+    setMode("sow");
   }
 
   // Shared guided-removal props for both demo intakes (intake + review).
@@ -214,13 +236,26 @@ function App() {
   };
 
   function handleDownload() {
-    if (!sow) return;
     const num = (meta?.projectNumber ?? "").trim().replace(/[^\w.-]+/g, "_");
-    const filename = num ? `${num}_SOW.docx` : "SOW.docx";
-    void downloadSowDocx(sow, models, filename).catch((e) => {
-      console.error("[SOW] .docx export failed", e);
-    });
+    if (mode === "rom") {
+      if (!rom) return;
+      void downloadRomDocx(rom, num ? `${num}_ROM.docx` : "ROM.docx").catch((e) => {
+        console.error("[ROM] .docx export failed", e);
+      });
+    } else {
+      if (!sow) return;
+      void downloadSowDocx(sow, models, num ? `${num}_SOW.docx` : "SOW.docx").catch((e) => {
+        console.error("[SOW] .docx export failed", e);
+      });
+    }
   }
+
+  const segClass = (on: boolean) =>
+    cn(
+      "rounded-[5px] px-3 py-1 font-mono text-xs transition-colors",
+      on ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+    );
+  const modeLabel = mode === "rom" ? "ROM summary" : "Scope of Work";
 
   const load = reduce
     ? {}
@@ -286,9 +321,32 @@ function App() {
 
                 <RemovalsPanel editor={editor} demo={demo} />
 
-                {/* Generate action + live status + coverage guardrail */}
+                {/* Output mode toggle + generate action + live status */}
                 <div className="space-y-3 border-t border-border pt-4">
-                  {cover && cover.total > 0 && !sowBusy && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="eyebrow">Output mode</span>
+                    <div className="inline-flex rounded-md border border-border p-0.5">
+                      <button
+                        type="button"
+                        aria-pressed={mode === "sow"}
+                        className={segClass(mode === "sow")}
+                        onClick={() => setMode("sow")}
+                      >
+                        Delivery SOW
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={mode === "rom"}
+                        className={segClass(mode === "rom")}
+                        onClick={() => setMode("rom")}
+                      >
+                        ROM Summary
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Coverage guardrail — Delivery SOW mode only */}
+                  {mode === "sow" && cover && cover.total > 0 && !sowBusy && (
                     cover.clean ? (
                       <div className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-300">
                         <CheckCircle2 className="h-4 w-4" />
@@ -319,15 +377,20 @@ function App() {
                     )
                   )}
 
-                  {sowError && <RawError error={sowError} label="SOW generation failed" />}
+                  {sowError && (
+                    <RawError
+                      error={sowError}
+                      label={mode === "rom" ? "ROM generation failed" : "SOW generation failed"}
+                    />
+                  )}
 
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="text-sm text-muted-foreground" aria-live="polite">
                       {sowBusy
                         ? `Generating… (${elapsed}s elapsed)`
-                        : sow
-                          ? "Edit the SOW in the paper pane, or regenerate."
-                          : "Generate the Scope of Work from the reviewed BOM."}
+                        : activeDoc
+                          ? `Edit the ${modeLabel} in the paper pane, or regenerate.`
+                          : `Generate the ${modeLabel} from the reviewed BOM.`}
                     </div>
                     <Button
                       onClick={handleGenerate}
@@ -338,13 +401,14 @@ function App() {
                         <>
                           <Loader2 className="animate-spin" /> Generating… {elapsed}s
                         </>
-                      ) : sow ? (
+                      ) : activeDoc ? (
                         <>
                           <RefreshCw /> Regenerate
                         </>
                       ) : (
                         <>
-                          <Sparkles /> Generate Scope of Work
+                          <Sparkles />{" "}
+                          {mode === "rom" ? "Generate ROM Summary" : "Generate Scope of Work"}
                         </>
                       )}
                     </Button>
@@ -360,8 +424,10 @@ function App() {
             className="min-w-0 space-y-4 py-6 lg:min-h-0 lg:overflow-y-auto lg:pr-2"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="eyebrow">Output · Scope of Work</span>
-              {sow ? (
+              <span className="eyebrow">
+                {mode === "rom" ? "Output · ROM Summary" : "Output · Scope of Work"}
+              </span>
+              {activeDoc ? (
                 <Button size="sm" onClick={handleDownload}>
                   <Download /> Download .docx
                 </Button>
@@ -369,13 +435,17 @@ function App() {
                 <span className="eyebrow text-muted-foreground">.docx preview</span>
               )}
             </div>
-            <SowPreview
-              sow={sow}
-              meta={meta}
-              models={models}
-              busy={sowBusy}
-              onChange={setSow}
-            />
+            {mode === "rom" ? (
+              <RomPreview rom={rom} meta={meta} busy={sowBusy} onChange={setRom} />
+            ) : (
+              <SowPreview
+                sow={sow}
+                meta={meta}
+                models={models}
+                busy={sowBusy}
+                onChange={setSow}
+              />
+            )}
           </motion.section>
         </div>
       </main>
