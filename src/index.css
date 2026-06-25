@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  SOW Generator — design tokens.
+  A tool/paper duality: a quiet dark "instrument panel" for the app chrome and
+  a warm light "paper" surface for the SOW preview. One accent only (EOS red),
+  used sparingly. See docs/DESIGN.md.
+*/
+@layer base {
+  :root {
+    /* --- Dark instrument surfaces (the app chrome) --- */
+    --background: 220 17% 7%; /* #0F1115 desk          */
+    --panel: 216 18% 11%; /* #161A20 panel         */
+    --raised: 214 19% 15%; /* #1E242C raised        */
+
+    --foreground: 219 19% 92%; /* #E6E9EE primary text  */
+    --muted-foreground: 215 14% 65%; /* #9AA4B2 muted text    */
+
+    /* shadcn semantic tokens mapped onto the instrument palette */
+    --card: 216 18% 11%;
+    --card-foreground: 219 19% 92%;
+    --popover: 214 19% 15%;
+    --popover-foreground: 219 19% 92%;
+    --secondary: 214 19% 15%;
+    --secondary-foreground: 219 19% 92%;
+    --muted: 216 16% 14%;
+    --accent: 214 19% 19%; /* quiet hover/active surface (NOT the brand red) */
+    --accent-foreground: 219 19% 92%;
+    --border: 215 17% 20%; /* #2A313B hairline      */
+    --input: 215 17% 20%;
+
+    /* The single accent — EOS brand red. Primary actions / active / focus. */
+    --primary: 350 85% 42%; /* #C8102E */
+    --primary-hover: 351 77% 50%; /* #E11D3A */
+    --primary-foreground: 0 0% 100%;
+    --ring: 351 80% 52%;
+
+    /* Delete/destructive — a slightly quieter red so it doesn't compete with
+       the primary action; deletes are low-emphasis ghost controls. */
+    --destructive: 350 62% 47%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* --- Paper surface (the SOW preview, mimics the .docx) --- */
+    --paper: 42 34% 98%; /* #FBFAF7 */
+    --paper-ink: 0 0% 10%; /* #1A1A1A */
+    --paper-muted: 40 6% 40%; /* #6B6862 */
+    --paper-hairline: 40 18% 87%; /* #E4E0D8 */
+
+    --radius: 0.5rem; /* 8px; md 6px / sm 4px derived in tailwind */
+
+    /* --- Type --- */
+    --font-sans: "Geist Sans", "Geist", "Inter", system-ui, -apple-system,
+      sans-serif;
+    --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, "SFMono-Regular",
+      monospace;
+    --font-paper: "Calibri", "Carlito", "Geist Sans", system-ui, sans-serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-size: 0.875rem; /* 14px instrument base */
+    line-height: 1.5;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Desktop: lock the document to the viewport so ONLY the two workspace panes
+     scroll — never the window. Mobile keeps normal single-column page scroll. */
+  @media (min-width: 1024px) {
+    html,
+    body,
+    #root {
+      height: 100%;
+      overflow: hidden;
+    }
+  }
+
+  /* Tabular numerics make qty/quantities and model strings line up cleanly. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Visible keyboard focus everywhere. shadcn controls set their own red ring
+     (this low-specificity rule yields to that, so there's no double ring);
+     every other focusable element gets a clear red outline. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  /* Thin, instrument-grade scrollbars. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border: 2px solid transparent;
+    border-radius: 8px;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--raised));
+  }
+}
+
+@layer components {
+  /* The paper sheet — warm, document-like; the SOW preview lives here. */
+  .paper-surface {
+    background: hsl(var(--paper));
+    color: hsl(var(--paper-ink));
+    font-family: var(--font-paper);
+  }
+
+  /* Small stamped label, like text on a piece of rack gear. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+}
+
+/* Honor reduced-motion: kill transitions/animations app-wide. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

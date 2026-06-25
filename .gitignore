@@ -1,0 +1,32 @@
+# Dependencies
+/node_modules
+
+# Build output
+/dist
+
+# Secrets — API keys and local environment
+.env
+.env.local
+.env.*
+
+# Reference SOW templates (local only)
+/templates
+
+# Confidential client documents (local only — real delivered SOWs / BOMs / drawings)
+/standards/examples/
+
+# Reference documents dropped in by hand (local only)
+/EXAMPLE DOCUMENTS
+
+# Word docs in the repo root (generated SOWs, scratch files)
+/*.docx
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Logs / editor / OS cruft
+*.log
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
