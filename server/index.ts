@@ -14,7 +14,7 @@ import {
   extractTextCore,
   generateRomCore,
   generateSowCore,
-} from "../api/_lib/handlers";
+} from "../api/_lib/handlers.js";
 
 const app = express();
 const PORT = Number(process.env.API_PORT ?? 8787);

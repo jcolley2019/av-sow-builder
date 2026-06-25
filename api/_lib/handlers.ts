@@ -5,7 +5,7 @@
 // wrapper differs. Every route responds HTTP 200; failures come back as an
 // { error, raw } object in the body (unchanged from the original sidecar).
 
-import { callClaude, MODEL } from "./anthropic";
+import { callClaude, MODEL } from "./anthropic.js";
 import {
   BOM_SHAPE,
   BOM_SYSTEM,
@@ -17,7 +17,7 @@ import {
   SOW_SYSTEM,
   STYLE_ANALYSIS_SYSTEM,
   STYLE_MATCH_DIRECTIVE,
-} from "./prompts";
+} from "./prompts.js";
 import {
   BomSchema,
   cleanRom,
@@ -27,7 +27,7 @@ import {
   RomDocSchema,
   SowDocSchema,
   StyleAnalysisSchema,
-} from "./schemas";
+} from "./schemas.js";
 import {
   buildContent,
   coerceArray,
@@ -40,7 +40,7 @@ import {
   type RemovalsDrawing,
   removalsGuide,
   responseText,
-} from "./helpers";
+} from "./helpers.js";
 
 type Body = Record<string, unknown>;
 
