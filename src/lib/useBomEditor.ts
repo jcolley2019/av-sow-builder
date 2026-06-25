@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   BomDoc,
@@ -56,6 +56,14 @@ export function useBomEditor() {
   const [core, setCore] = useState<Core | null>(null);
   const [removals, setRemovals] = useState<RemovalItem[]>([]);
 
+  // SOW.13 — site notes: optional, prose-only guidance that never changes scope.
+  // Kept beside the BomDoc (NOT inside it) so extraction/coverage/docx are
+  // untouched. `projectContext` is project-wide; `roomNotes` maps a location
+  // NAME -> note. These survive mode toggles (the hook lives in App) and feed
+  // only the SOW/ROM generation prompts.
+  const [projectContext, setProjectContext] = useState("");
+  const [roomNotes, setRoomNotes] = useState<Record<string, string>>({});
+
   const doc = useMemo<BomDoc | null>(
     () => (core ? { ...core, removals } : null),
     [core, removals],
@@ -66,12 +74,27 @@ export function useBomEditor() {
     [],
   );
 
+  // Latest core, read synchronously by renameRoom to migrate a room's note key.
+  const coreRef = useRef<Core | null>(core);
+  useEffect(() => {
+    coreRef.current = core;
+  }, [core]);
+
   // --- lifecycle -----------------------------------------------------------
   const initFromBom = useCallback((extract: Core) => setCore(extract), []);
   const reset = useCallback(() => {
     setCore(null);
     setRemovals([]);
+    setProjectContext("");
+    setRoomNotes({});
   }, []);
+
+  // --- site notes (SOW.13) -------------------------------------------------
+  const setRoomNote = useCallback(
+    (name: string, note: string) =>
+      setRoomNotes((prev) => ({ ...prev, [name]: note })),
+    [],
+  );
 
   // --- metadata ------------------------------------------------------------
   const setMeta = useCallback(
@@ -89,11 +112,25 @@ export function useBomEditor() {
     [update],
   );
   const renameRoom = useCallback(
-    (ri: number, name: string) =>
+    (ri: number, name: string) => {
+      // Carry any site note from the old name to the new one so it stays tied
+      // to the room (without clobbering a note already under the new name).
+      const old = coreRef.current?.locations[ri]?.name;
+      if (old != null && old !== name) {
+        setRoomNotes((notes) => {
+          if (!(old in notes)) return notes;
+          const next = { ...notes };
+          const val = next[old];
+          delete next[old];
+          if (!(name in next)) next[name] = val;
+          return next;
+        });
+      }
       update((c) => ({
         ...c,
         locations: mapAt(c.locations, ri, (r) => ({ ...r, name })),
-      })),
+      }));
+    },
     [update],
   );
 
@@ -199,6 +236,10 @@ export function useBomEditor() {
     core,
     removals,
     doc,
+    projectContext,
+    roomNotes,
+    setProjectContext,
+    setRoomNote,
     initFromBom,
     reset,
     setMeta,

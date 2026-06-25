@@ -9,6 +9,15 @@ import {
 export type StyleMode = "house" | "match";
 export type StyleAnalysis = { differs: boolean; summary: string };
 
+// SOW.13 — site notes: optional, prose-only guidance sent with generation.
+// It shapes how the SOW/ROM reads; it never changes scope (the BOM does that).
+export type RoomNote = { room: string; note: string };
+export type SowContext = {
+  projectContext?: string;
+  /** Per-room notes, each labeled with its location name. Empty notes omitted. */
+  roomNotes?: RoomNote[];
+};
+
 export type DependencyFlag = {
   forItem: string;
   location: string | null;
@@ -134,13 +143,20 @@ export function extractRemovals(
 }
 
 /** Generate the Scope of Work from the reviewed BomDoc + project metadata.
- *  Optionally match the voice/structure of a provided example SOW. */
+ *  Optionally match the voice/structure of a provided example SOW, and pass
+ *  optional site notes (`context`) that guide the prose without changing scope. */
 export function generateSow(
   bom: BomDoc,
   meta: SowMeta,
-  style?: { styleSample?: string; styleMode?: StyleMode },
+  opts?: { styleSample?: string; styleMode?: StyleMode; context?: SowContext },
 ): Promise<SowDoc | ExtractError> {
-  return postJson<SowDoc | ExtractError>("/api/generate-sow", { bom, meta, ...style });
+  const { context, ...style } = opts ?? {};
+  return postJson<SowDoc | ExtractError>("/api/generate-sow", {
+    bom,
+    meta,
+    ...style,
+    context,
+  });
 }
 
 // --- Match-a-Style (example SOW) -------------------------------------------
@@ -169,12 +185,14 @@ export function analyzeStyle(sample: string): Promise<StyleAnalysis | ExtractErr
   return postJson<StyleAnalysis | ExtractError>("/api/analyze-style", { sample });
 }
 
-/** Generate a budgetary ROM scope summary from the same BomDoc + metadata. */
+/** Generate a budgetary ROM scope summary from the same BomDoc + metadata.
+ *  Optional site notes (`context`) guide the prose without changing scope. */
 export function generateRom(
   bom: BomDoc,
   meta: SowMeta,
+  context?: SowContext,
 ): Promise<RomDoc | ExtractError> {
-  return postJson<RomDoc | ExtractError>("/api/generate-rom", { bom, meta });
+  return postJson<RomDoc | ExtractError>("/api/generate-rom", { bom, meta, context });
 }
 
 /** Conservative AV dependency check (read-only): suggestions to confirm. */

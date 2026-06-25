@@ -42,6 +42,7 @@ import {
   type BomRequest,
   type DependencyFlag,
   type ExtractError,
+  type SowContext,
   type SowMeta,
   type StyleAnalysis,
   type StyleMode,
@@ -288,15 +289,30 @@ function App() {
     void submitRemovals(null);
   }
 
+  // Collect the optional site notes (SOW.13) into a generation context. Empty
+  // project context and empty room notes are omitted; returns undefined if none.
+  function buildContext(): SowContext | undefined {
+    const projectContext = editor.projectContext.trim();
+    const roomNotes = Object.entries(editor.roomNotes)
+      .map(([room, note]) => ({ room, note: note.trim() }))
+      .filter((n) => n.note.length > 0);
+    if (!projectContext && roomNotes.length === 0) return undefined;
+    return {
+      projectContext: projectContext || undefined,
+      roomNotes: roomNotes.length ? roomNotes : undefined,
+    };
+  }
+
   // --- Output generation (SOW or ROM, per active mode) ---------------------
   async function handleGenerate() {
     if (!editor.doc || !meta) return;
     setSowError(null);
     setSowBusy(true);
     setElapsed(0);
+    const context = buildContext();
     try {
       if (mode === "rom") {
-        const data = await generateRom(editor.doc, meta);
+        const data = await generateRom(editor.doc, meta, context);
         if (isError(data)) {
           setSowError(data);
           return;
@@ -306,6 +322,7 @@ function App() {
         const data = await generateSow(editor.doc, meta, {
           styleSample: styleSample ?? undefined,
           styleMode,
+          context,
         });
         if (isError(data)) {
           setSowError(data);

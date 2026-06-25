@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { SiteNotes } from "@/components/SiteNotes";
 import {
   Accordion,
   AccordionContent,
@@ -136,6 +137,16 @@ export function BomReview({
           />
         </CardContent>
       </Card>
+
+      {/* Project context / site notes — prose-only guidance (SOW.13). Sits
+          between Project details and the BOM structure. */}
+      <SiteNotes
+        projectContext={editor.projectContext}
+        onProjectContextChange={editor.setProjectContext}
+        rooms={core.locations.map((r) => r.name)}
+        roomNotes={editor.roomNotes}
+        onRoomNoteChange={editor.setRoomNote}
+      />
 
       {/* Location -> System -> items tree */}
       <Card>

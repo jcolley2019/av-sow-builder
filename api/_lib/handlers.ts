@@ -44,6 +44,37 @@ import {
 
 type Body = Record<string, unknown>;
 
+// SOW.13 — render the optional site notes into a labeled guidance block for the
+// user message. Returns "" when nothing usable is present (so the prompt is
+// unchanged when no notes are given). The system prompt's CONTEXT_RULE governs
+// how the model must treat this block (guidance only — never changes scope).
+type CtxRoomNote = { room?: unknown; note?: unknown };
+function contextBlock(raw: unknown): string {
+  if (!raw || typeof raw !== "object") return "";
+  const c = raw as { projectContext?: unknown; roomNotes?: unknown };
+  const proj = typeof c.projectContext === "string" ? c.projectContext.trim() : "";
+  const notes = Array.isArray(c.roomNotes)
+    ? (c.roomNotes as CtxRoomNote[])
+        .map((n) => ({
+          room: typeof n?.room === "string" ? n.room.trim() : "",
+          note: typeof n?.note === "string" ? n.note.trim() : "",
+        }))
+        .filter((n) => n.note.length > 0)
+    : [];
+  if (!proj && notes.length === 0) return "";
+
+  let s =
+    "\n\nPROJECT CONTEXT / SITE NOTES — interpretive guidance ONLY. Use it to " +
+    "describe relationships and design intent for equipment ALREADY in the BOM; " +
+    "do NOT add, remove, rename, or invent any equipment or scope:";
+  if (proj) s += `\n\nProject context:\n${proj}`;
+  if (notes.length) {
+    s += "\n\nPer-room notes (apply each to that room's section):";
+    for (const n of notes) s += `\n- ${n.room || "(unnamed location)"}: ${n.note}`;
+  }
+  return s;
+}
+
 // Parse an uploaded BOM into a Location -> System -> line-item tree.
 export async function extractBomCore(body: Body): Promise<unknown> {
   let raw = "";
@@ -234,6 +265,7 @@ export async function generateSowCore(body: Body): Promise<unknown> {
       JSON.stringify(meta) +
       '\n\nCOMPANY (the integrator writing this SOW — use this EXACT name in place of <Company>: as the subject of every "will provide and install" sentence and as the running-header company): ' +
       company +
+      contextBlock(b.context) +
       "\n\n" +
       styleLabel +
       "\n" +
@@ -283,6 +315,7 @@ export async function generateRomCore(body: Body): Promise<unknown> {
       JSON.stringify(meta) +
       "\n\nCOMPANY (the integrator — use this EXACT name in place of <Company>, in the running header and as the author/voice): " +
       company +
+      contextBlock(b.context) +
       "\n\nReturn ONLY the RomDoc JSON for THIS project.";
 
     const msg = await callClaude({
