@@ -37,7 +37,7 @@ export function BomIntake({
   const [pasted, setPasted] = React.useState("");
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 lg:flex lg:flex-1 lg:flex-col">
       {/* Zone 1 — BILL OF MATERIALS (required) */}
       <Card>
         <CardHeader className="space-y-2">
@@ -90,8 +90,9 @@ export function BomIntake({
         </CardContent>
       </Card>
 
-      {/* Zone 2 — DEMO / AS-BUILT DRAWINGS (optional, guided) */}
-      <Card>
+      {/* Zone 2 — DEMO / AS-BUILT DRAWINGS (optional, guided) — last card grows
+          so the left column bottom-aligns with the right. */}
+      <Card className="lg:flex lg:flex-1 lg:flex-col">
         <CardHeader className="space-y-2">
           <span className="eyebrow">Optional</span>
           <CardTitle className="flex items-center gap-2 text-base">

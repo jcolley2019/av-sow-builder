@@ -18,6 +18,7 @@ export type LaborModel = ReturnType<typeof useLaborModel>;
 export function useLaborModel() {
   const [library, setLibrary] = useState<Record<LaborCategory, number>>(DEFAULT_LABOR);
   const [workingHoursPerDay, setWorkingHoursPerDay] = useState(8);
+  const [stagingPerDay, setStagingPerDay] = useState(1.0);
   const [lineOverrides, setLineOverrides] = useState<Record<string, number>>({});
   const [roomDaysOverride, setRoomDaysOverride] = useState<Record<number, number | null>>({});
   const [roomLabor, setRoomLabor] = useState<Record<number, OtherLabor>>({});
@@ -77,6 +78,7 @@ export function useLaborModel() {
   return {
     library,
     workingHoursPerDay,
+    stagingPerDay,
     lineOverrides,
     roomDaysOverride,
     roomLabor,
@@ -84,6 +86,7 @@ export function useLaborModel() {
     setCategoryDefault,
     setLineHours,
     setWorkingHoursPerDay,
+    setStagingPerDay,
     setRoomDays,
     setRoomOther,
     updateTravel,

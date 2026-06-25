@@ -9,7 +9,9 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border border-border bg-card text-card-foreground",
+      // Hairline border kept for identity; a soft, layered shadow adds calm
+      // depth (cards lift gently off the instrument surface).
+      "rounded-lg border border-border bg-card text-card-foreground shadow-[0_1px_2px_rgb(0_0_0/0.22),0_10px_28px_-14px_rgb(0_0_0/0.5)]",
       className,
     )}
     {...props}

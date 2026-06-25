@@ -7,8 +7,11 @@ import { cn } from "@/lib/utils";
 // paper, so these live in one place.
 
 export function PaperSheet({ children }: { children: React.ReactNode }) {
+  // `lg:flex-1` lets the sheet grow to fill the framed document card so the
+  // right column bottom-aligns with the left (only active inside the flex-column
+  // document card; short docs still reach the bottom, long docs scroll).
   return (
-    <div className="paper-surface mx-auto max-w-[52rem] rounded-md border border-paper-hairline px-7 py-8 shadow-page sm:px-10 sm:py-12">
+    <div className="paper-surface mx-auto w-full max-w-[52rem] rounded-md border border-paper-hairline px-7 py-8 shadow-page sm:px-10 sm:py-12 lg:flex-1">
       {children}
     </div>
   );

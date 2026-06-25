@@ -10,6 +10,8 @@ export type LaborCategory =
   | "projectorMount"
   | "ceilingSpeaker"
   | "surfaceSpeaker"
+  | "outdoorSpeaker"
+  | "subwoofer"
   | "ceilingMic"
   | "tableMic"
   | "wirelessMic"
@@ -21,33 +23,41 @@ export type LaborCategory =
   | "avOverIp"
   | "control"
   | "touchPanel"
+  | "rackDevice"
   | "rack"
   | "networkSwitch"
   | "wirelessPresentation"
   | "wallplate"
+  | "floorBox"
   | "other";
 
+// Calibrated against a real D-Tools install (per-device hours validated to land
+// a real boardroom near its actual install-day count). All values stay editable.
 export const LABOR_CATEGORIES: { key: LaborCategory; label: string; hours: number }[] = [
   { key: "display", label: "Display / monitor", hours: 1.5 },
-  { key: "projector", label: "Projector", hours: 3.0 },
-  { key: "projectorMount", label: "Projector lift / mount", hours: 2.0 },
-  { key: "ceilingSpeaker", label: "Ceiling speaker", hours: 0.5 },
-  { key: "surfaceSpeaker", label: "Surface / pendant speaker", hours: 0.5 },
-  { key: "ceilingMic", label: "Ceiling microphone array", hours: 1.0 },
+  { key: "projector", label: "Projector", hours: 2.5 },
+  { key: "projectorMount", label: "Projector lift / screen", hours: 2.0 },
+  { key: "ceilingSpeaker", label: "Ceiling speaker", hours: 1.0 },
+  { key: "surfaceSpeaker", label: "Surface / pendant speaker", hours: 1.5 },
+  { key: "outdoorSpeaker", label: "In-ground / outdoor speaker", hours: 2.0 },
+  { key: "subwoofer", label: "Subwoofer", hours: 1.0 },
+  { key: "ceilingMic", label: "Ceiling microphone array", hours: 1.5 },
   { key: "tableMic", label: "Table / gooseneck mic", hours: 0.5 },
-  { key: "wirelessMic", label: "Wireless mic system", hours: 1.0 },
+  { key: "wirelessMic", label: "Wireless mic system", hours: 1.25 },
   { key: "dsp", label: "DSP / audio processor", hours: 2.0 },
-  { key: "amplifier", label: "Amplifier", hours: 1.0 },
+  { key: "amplifier", label: "Power amplifier", hours: 1.0 },
   { key: "codec", label: "Video codec / room system", hours: 2.0 },
-  { key: "camera", label: "PTZ / camera", hours: 1.5 },
+  { key: "camera", label: "PTZ / fixed camera", hours: 1.0 },
   { key: "videoSwitcher", label: "Video switcher / matrix", hours: 1.5 },
   { key: "avOverIp", label: "AV-over-IP encoder / decoder", hours: 0.75 },
   { key: "control", label: "Control processor", hours: 2.0 },
-  { key: "touchPanel", label: "Touch panel", hours: 1.0 },
+  { key: "touchPanel", label: "Touch panel / navigator", hours: 1.0 },
+  { key: "rackDevice", label: "Rack-mounted device", hours: 0.75 },
   { key: "rack", label: "Equipment rack (build)", hours: 4.0 },
   { key: "networkSwitch", label: "Network switch", hours: 1.0 },
   { key: "wirelessPresentation", label: "Wireless presentation", hours: 0.75 },
-  { key: "wallplate", label: "Wallplate / floorbox / retractor", hours: 0.5 },
+  { key: "wallplate", label: "Wallplate / Tx plate", hours: 0.5 },
+  { key: "floorBox", label: "Floor box / poke-thru / retractor", hours: 1.0 },
   { key: "other", label: "Default / other", hours: 0.5 },
 ];
 
@@ -70,12 +80,14 @@ export function categorize(item: {
 
   if (has(/projector\s*(lift|mount|kit)|screen\s*lift|sysauwp/)) return "projectorMount";
   if (has(/projector|powerlite|3lcd|\bvpl\b|laser projector/)) return "projector";
+  if (has(/in-?ground|outdoor speaker|landscape speaker|burial|garden speaker/)) return "outdoorSpeaker";
+  if (has(/subwoofer|\bsub\b/)) return "subwoofer";
   if (has(/ceiling\s*(array|microphone|mic)|mxa9|\btcm\b|beamform/)) return "ceilingMic";
   if (has(/gooseneck|podium mic|lectern mic|table mic|boundary mic|mx41/)) return "tableMic";
   if (has(/wireless mic|bodypack|handheld|lavalier|\bmxw\b|ulxd|access point transceiver|mic receiver/))
     return "wirelessMic";
   if (has(/ceiling speaker|saros|in-?ceiling speaker/)) return "ceilingSpeaker";
-  if (has(/speaker|loudspeaker|subwoofer|soundbar/)) return "surfaceSpeaker";
+  if (has(/speaker|loudspeaker|soundbar/)) return "surfaceSpeaker";
   if (has(/\bdsp\b|q-?sys core|qsys|tesira|audio processor|\bcore \d|spa-?q/)) return "dsp";
   if (has(/amplifier|power amp|\bamp\b/)) return "amplifier";
   if (has(/codec|room kit|room system|rally bar|video bar|meetup|studio bar/)) return "codec";
@@ -84,11 +96,13 @@ export function categorize(item: {
   if (has(/nv-?\d|nv series|encoder|decoder|av-?over-?ip|avoip|sdvoe/)) return "avOverIp";
   if (has(/control processor|\bcp\d\b|control system/)) return "control";
   if (has(/touch panel|navigator|\btsw\b|\btap\b|touch ?screen|control panel/)) return "touchPanel";
+  if (has(/rack[\s-]?(ear|shelf|kit|rail|psu|power|mount|tray|panel|drawer|blank|lacing)|dante\b/))
+    return "rackDevice";
   if (has(/network switch|poe switch|m4350|catalyst|managed switch|\bswitch\b/)) return "networkSwitch";
   if (has(/clickshare|wireless presentation|airmedia|\bvia\b/)) return "wirelessPresentation";
   if (has(/\brack\b|equipment rack/)) return "rack";
-  if (has(/wall ?plate|floor ?box|table ?box|retractor|poke ?thr|raceway|grommet|cubby/))
-    return "wallplate";
+  if (has(/floor ?box|poke ?thr|retractor|table ?box/)) return "floorBox";
+  if (has(/wall ?plate|tx plate|raceway|grommet|cubby|single-?gang/)) return "wallplate";
   if (has(/display|monitor|\bqm\d|\bqe\d|\buhd\b|video wall|signage|\blfd\b/)) return "display";
   if (has(/mount|bracket|shelf|yoke/)) return "wallplate";
   return "other";
@@ -157,9 +171,10 @@ export type RoomLabor = {
   ri: number;
   name: string;
   lines: LaborLine[];
-  installHours: number;
+  installHours: number; // device install hours (drives install days)
   computedDays: number; // ceil(installHours / workingHoursPerDay)
   installDays: number; // override ?? computedDays
+  stagingHours: number; // installDays * stagingPerDay (no re-rounding of days)
   other: OtherLabor;
 };
 
@@ -167,12 +182,25 @@ export type LaborResult = {
   rooms: RoomLabor[];
   totalInstallHours: number;
   totalInstallDays: number;
+  totalStagingHours: number;
   otherTotals: OtherLabor;
 };
 
 export function lineKey(ri: number, si: number, ii: number): string {
   return `${ri}.${si}.${ii}`;
 }
+
+// Rack-mounted head-end categories — their presence implies a rack to build.
+const RACK_GEAR: ReadonlySet<LaborCategory> = new Set([
+  "dsp",
+  "codec",
+  "amplifier",
+  "control",
+  "avOverIp",
+  "videoSwitcher",
+  "networkSwitch",
+  "rackDevice",
+]);
 
 export function computeLabor(
   bom: BomDoc,
@@ -181,11 +209,14 @@ export function computeLabor(
   workingHoursPerDay: number,
   roomDaysOverride: Record<number, number | null | undefined>,
   roomLabor: Record<number, OtherLabor | undefined>,
+  stagingPerDay = 0,
 ): LaborResult {
   const perDay = workingHoursPerDay > 0 ? workingHoursPerDay : 8;
+  const staging = Number.isFinite(stagingPerDay) && stagingPerDay > 0 ? stagingPerDay : 0;
   const rooms: RoomLabor[] = [];
   let totalInstallHours = 0;
   let totalInstallDays = 0;
+  let totalStagingHours = 0;
   let otherTotals = emptyOther();
 
   bom.locations.forEach((room, ri) => {
@@ -215,9 +246,35 @@ export function computeLabor(
       });
     });
 
+    // Auto-add a one-time equipment rack build when the room has rack-mounted
+    // head-end gear but no explicit rack line in the BOM. Editable/removable via
+    // the per-line hours override (set it to 0 to remove).
+    const hasExplicitRack = lines.some((l) => l.category === "rack");
+    const hasRackGear = lines.some((l) => RACK_GEAR.has(l.category));
+    if (hasRackGear && !hasExplicitRack) {
+      const key = `${ri}.rackbuild`;
+      const ovr = lineOverrides[key];
+      const perUnit = ovr != null && Number.isFinite(ovr) ? ovr : library.rack;
+      installHours += perUnit;
+      lines.push({
+        ri,
+        si: -1,
+        ii: -1,
+        key,
+        manufacturer: "Equipment rack build",
+        model: "",
+        category: "rack",
+        qty: 1,
+        perUnit,
+        lineHours: perUnit,
+      });
+    }
+
     const computedDays = Math.ceil(installHours / perDay) || 0;
     const ov = roomDaysOverride[ri];
     const installDays = ov != null && Number.isFinite(ov) ? ov : computedDays;
+    // Staging/clean-up scales with whole install days — no second day-rounding.
+    const stagingHours = installDays * staging;
     const other = roomLabor[ri] ?? emptyOther();
 
     rooms.push({
@@ -227,14 +284,16 @@ export function computeLabor(
       installHours,
       computedDays,
       installDays,
+      stagingHours,
       other,
     });
     totalInstallHours += installHours;
     totalInstallDays += installDays;
+    totalStagingHours += stagingHours;
     otherTotals = addOther(otherTotals, other);
   });
 
-  return { rooms, totalInstallHours, totalInstallDays, otherTotals };
+  return { rooms, totalInstallHours, totalInstallDays, totalStagingHours, otherTotals };
 }
 
 // --- Travel (the only place dollars live) ----------------------------------

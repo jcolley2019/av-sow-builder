@@ -1,5 +1,17 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Download, Plus, Trash2, RotateCcw, Wrench, Plane, Settings2 } from "lucide-react";
+import {
+  Download,
+  Plus,
+  Trash2,
+  RotateCcw,
+  Wrench,
+  Plane,
+  Settings2,
+  PackageOpen,
+  Loader2,
+  FileText,
+  X,
+} from "lucide-react";
 
 import {
   Card,
@@ -10,6 +22,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -18,8 +31,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DropZone } from "@/components/DropZone";
+import { RawError } from "@/components/RawError";
 import { Model } from "@/components/Model";
 import { cn } from "@/lib/utils";
+import { BOM_ACCEPT } from "@/lib/files";
 import {
   CATEGORY_LABEL,
   LABOR_CATEGORIES,
@@ -29,6 +45,7 @@ import {
 } from "@/lib/laborLibrary";
 import { downloadLaborDocx } from "@/lib/docx";
 import type { LaborModel } from "@/lib/useLaborModel";
+import type { ExtractError } from "@/lib/api";
 import type { BomDoc } from "@/lib/types";
 
 const hrs = (n: number) => `${Math.round(n * 100) / 100}`;
@@ -98,12 +115,27 @@ export function LaborView({
   bom,
   labor,
   company,
+  sourceName,
+  isDropped,
+  busy,
+  error,
+  onFiles,
+  onPaste,
+  onClear,
 }: {
   bom: BomDoc | null;
   labor: LaborModel;
   company: string;
+  sourceName: string | null;
+  isDropped: boolean;
+  busy: boolean;
+  error: ExtractError | null;
+  onFiles: (files: File[]) => void;
+  onPaste: (text: string) => void;
+  onClear: () => void;
 }) {
   const [showLibrary, setShowLibrary] = useState(false);
+  const [pasted, setPasted] = useState("");
 
   const result = useMemo(
     () =>
@@ -115,9 +147,10 @@ export function LaborView({
             labor.workingHoursPerDay,
             labor.roomDaysOverride,
             labor.roomLabor,
+            labor.stagingPerDay,
           )
         : null,
-    [bom, labor.library, labor.lineOverrides, labor.workingHoursPerDay, labor.roomDaysOverride, labor.roomLabor],
+    [bom, labor.library, labor.lineOverrides, labor.workingHoursPerDay, labor.roomDaysOverride, labor.roomLabor, labor.stagingPerDay],
   );
 
   const travel = useMemo(
@@ -132,13 +165,92 @@ export function LaborView({
     company: company.trim() ? company.trim() : null,
   };
 
+  // Equipment-source card — drop/paste a list for a standalone labor check, or
+  // fall back to the SOW Builder's BOM. The SOW side's BomDoc is never touched.
+  const sourceCard = (
+    <Card>
+      <CardHeader className="space-y-1.5">
+        <span className="eyebrow">Equipment source</span>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <PackageOpen className="h-4 w-4 text-muted-foreground" />
+          Labor from an equipment list
+        </CardTitle>
+        <CardDescription>
+          Drop a list for a quick labor check — or it uses the BOM loaded in the SOW Builder.
+          The SOW side is never changed.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {sourceName && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-raised/40 px-2.5 py-1.5">
+            <span className="flex min-w-0 items-center gap-2 text-sm">
+              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="truncate">Using: {sourceName}</span>
+            </span>
+            {isDropped && (
+              <button
+                type="button"
+                onClick={onClear}
+                aria-label="Clear dropped list"
+                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
+        {busy ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Extracting the equipment list…
+          </div>
+        ) : (
+          <>
+            <DropZone
+              accept={BOM_ACCEPT}
+              multiple={false}
+              busy={busy}
+              onFiles={onFiles}
+              icon={<PackageOpen className="h-5 w-5" />}
+              title={isDropped ? "Drop to replace the list" : "Drop an equipment list or BOM"}
+              hint=".xlsx · .xls · .csv · .pdf · .png · .jpg · .webp"
+              className="py-5"
+            />
+            <div className="space-y-2">
+              <span className="eyebrow block">Or paste</span>
+              <Textarea
+                value={pasted}
+                onChange={(e) => setPasted(e.target.value)}
+                placeholder={"Qty\tManufacturer\tModel\n…"}
+                className="min-h-[64px] font-mono text-xs"
+              />
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={pasted.trim().length === 0}
+                  onClick={() => {
+                    onPaste(pasted);
+                    setPasted("");
+                  }}
+                >
+                  Use pasted list
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+        {error && <RawError error={error} label="Equipment list failed" />}
+      </CardContent>
+    </Card>
+  );
+
   if (!bom || bom.locations.length === 0 || !result) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
+        {sourceCard}
         <Card>
           <CardContent className="p-8 text-center text-sm text-muted-foreground">
-            Load a BOM in the SOW Builder to seed install time. The equipment list drives the
-            per-room install hours and days here.
+            Drop an equipment list above (or load a BOM in the SOW Builder) to seed install time.
           </CardContent>
         </Card>
       </div>
@@ -157,6 +269,8 @@ export function LaborView({
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
+      {sourceCard}
+
       {/* Summary */}
       <Card>
         <CardHeader className="flex-row items-start justify-between space-y-0">
@@ -171,9 +285,10 @@ export function LaborView({
             <Download /> Download .docx
           </Button>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Stat label="Install hours" value={hrs(result.totalInstallHours)} />
           <Stat label="Install days" value={`${result.totalInstallDays}`} accent />
+          <Stat label="Staging hrs" value={hrs(result.totalStagingHours)} />
           <Stat label="Other labor hrs" value={hrs(sumOther(result.otherTotals))} />
           <Stat label="Travel subtotal" value={usd(travel.subtotal)} />
           <div className="col-span-2 sm:col-span-4">
@@ -208,6 +323,12 @@ export function LaborView({
               value={labor.workingHoursPerDay}
               step={0.5}
               onChange={(n) => labor.setWorkingHoursPerDay(n || 8)}
+            />
+            <Field
+              label="Staging & clean-up (hrs / day)"
+              value={labor.stagingPerDay}
+              step={0.25}
+              onChange={(n) => labor.setStagingPerDay(n)}
             />
             <Button variant="outline" size="sm" onClick={() => setShowLibrary((v) => !v)}>
               {showLibrary ? "Hide" : "Edit"} category defaults
@@ -244,6 +365,7 @@ export function LaborView({
               <CardDescription>
                 {hrs(room.installHours)} install hours · {room.installDays} install day(s)
                 {room.installDays !== room.computedDays ? ` (auto ${room.computedDays})` : ""}
+                {room.stagingHours > 0 ? ` · staging/clean-up ${hrs(room.stagingHours)} hrs` : ""}
               </CardDescription>
             </div>
             <div className="flex items-end gap-1.5">

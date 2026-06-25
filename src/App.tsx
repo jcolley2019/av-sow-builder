@@ -80,6 +80,57 @@ function App() {
     }
   }
 
+  // Standalone Labor & Travel equipment source — independent of the SOW BomDoc.
+  // If set, the labor page uses it; otherwise it falls back to editor.doc.
+  const [laborBom, setLaborBom] = useState<BomDoc | null>(null);
+  const [laborBomName, setLaborBomName] = useState<string | null>(null);
+  const [laborBomBusy, setLaborBomBusy] = useState(false);
+  const [laborBomError, setLaborBomError] = useState<ExtractError | null>(null);
+
+  async function ingestLaborBom(req: BomRequest, name: string) {
+    setLaborBomError(null);
+    setLaborBomBusy(true);
+    try {
+      const data = await extractBom(req);
+      if (isError(data)) {
+        setLaborBomError(data);
+        return;
+      }
+      if (!data.locations || data.locations.length === 0) {
+        setLaborBomError({
+          error: "No equipment was extracted from that list. Check the file or text.",
+          raw: JSON.stringify(data, null, 2),
+        });
+        return;
+      }
+      setLaborBom({ ...data, removals: [] });
+      setLaborBomName(name);
+    } catch (e) {
+      setLaborBomError({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setLaborBomBusy(false);
+    }
+  }
+  async function handleLaborFiles(files: File[]) {
+    const file = files[0];
+    if (!file) return;
+    try {
+      await ingestLaborBom(await bomRequestFromFile(file), file.name);
+    } catch (e) {
+      setLaborBomError({ error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  const handleLaborPaste = (text: string) => {
+    if (text.trim()) void ingestLaborBom({ kind: "text", text }, "Pasted list");
+  };
+  function clearLaborBom() {
+    setLaborBom(null);
+    setLaborBomName(null);
+    setLaborBomError(null);
+    setLaborBomBusy(false);
+  }
+
+
   const [bomBusy, setBomBusy] = useState(false);
   const [bomError, setBomError] = useState<ExtractError | null>(null);
 
@@ -392,6 +443,7 @@ function App() {
     setDepFlags(null);
     setDepError(null);
     labor.reset();
+    clearLaborBom();
     setCompany(loadCompanyDefault()); // keep the saved company default
   }
 
@@ -484,13 +536,30 @@ function App() {
 
       {view === "labor" ? (
         <main className="flex-1 lg:min-h-0 lg:overflow-y-auto">
-          <LaborView bom={editor.doc} labor={labor} company={company} />
+          <LaborView
+            bom={laborBom ?? editor.doc}
+            labor={labor}
+            company={company}
+            sourceName={
+              laborBom
+                ? laborBomName ?? "Dropped list"
+                : editor.doc
+                  ? "BOM from SOW Builder"
+                  : null
+            }
+            isDropped={laborBom !== null}
+            busy={laborBomBusy}
+            error={laborBomError}
+            onFiles={handleLaborFiles}
+            onPaste={handleLaborPaste}
+            onClear={clearLaborBom}
+          />
         </main>
       ) : (
       /* Two-pane workspace. On lg each pane fills the viewport below the top
          bar and scrolls independently; below lg the panes stack. */
       <main className="flex-1 lg:min-h-0 lg:overflow-hidden">
-        <div className="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 sm:px-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-1 lg:gap-8">
+        <div className="mx-auto grid max-w-[1500px] grid-cols-1 items-stretch gap-6 px-4 sm:px-6 lg:h-full lg:grid-cols-2 lg:grid-rows-1 lg:gap-8">
           {/* LEFT — input / controls on the dark instrument surface */}
           <motion.section
             key={showReview ? "review" : "intake"}
@@ -504,7 +573,7 @@ function App() {
               )}
             </div>
 
-            <div className="space-y-4 pb-6 pt-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-2">
+            <div className="space-y-4 pb-6 pt-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:pr-2">
             {!showReview ? (
               <BomIntake
                 onBomFiles={handleBomFiles}
@@ -515,7 +584,7 @@ function App() {
                 removalsCount={editor.removals.length}
               />
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 lg:flex lg:flex-1 lg:flex-col lg:[&>*:last-child]:flex-1">
                 <BomReview editor={editor} company={company} onCompanyChange={updateCompany} />
 
                 <RemovalsPanel editor={editor} demo={demo} />
@@ -671,8 +740,10 @@ function App() {
               </Card>
             </div>
 
-            {/* Scrolling body — Compare view, or the framed document sheet. */}
-            <div className="pb-6 pt-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-2">
+            {/* Scrolling body — Compare view, or the framed document sheet.
+                The document card grows to fill the pane so the right column
+                bottom-aligns with the left; long docs scroll within the pane. */}
+            <div className="pb-6 pt-4 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:pr-2">
               {mode === "compare" ? (
                 editor.doc ? (
                   <CompareView
@@ -697,20 +768,22 @@ function App() {
                   </Card>
                 )
               ) : (
-                <Card>
-                  <CardContent className="space-y-2 p-3 sm:p-4">
+                <Card className="lg:flex lg:flex-1 lg:flex-col">
+                  <CardContent className="space-y-2 p-3 sm:p-4 lg:flex lg:flex-1 lg:flex-col">
                     <span className="eyebrow block">Document · .docx preview</span>
-                    {mode === "rom" ? (
-                      <RomPreview rom={rom} meta={meta} busy={sowBusy} onChange={setRom} />
-                    ) : (
-                      <SowPreview
-                        sow={sow}
-                        meta={meta}
-                        models={models}
-                        busy={sowBusy}
-                        onChange={setSow}
-                      />
-                    )}
+                    <div className="lg:flex lg:flex-1 lg:flex-col">
+                      {mode === "rom" ? (
+                        <RomPreview rom={rom} meta={meta} busy={sowBusy} onChange={setRom} />
+                      ) : (
+                        <SowPreview
+                          sow={sow}
+                          meta={meta}
+                          models={models}
+                          busy={sowBusy}
+                          onChange={setSow}
+                        />
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               )}

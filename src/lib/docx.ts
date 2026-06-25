@@ -407,13 +407,23 @@ export function buildLaborDocument(a: LaborDocArgs): Document {
   const installRows: TableRow[] = [
     new TableRow({
       tableHeader: true,
-      children: [cell("Room", { bold: true }), cell("Install hours", { bold: true, align: R }), cell("Install days", { bold: true, align: R })],
+      children: [
+        cell("Room", { bold: true }),
+        cell("Install hours", { bold: true, align: R }),
+        cell("Install days", { bold: true, align: R }),
+        cell("Staging hrs", { bold: true, align: R }),
+      ],
     }),
   ];
   for (const room of a.result.rooms) {
     installRows.push(
       new TableRow({
-        children: [cell(room.name), cell(hrs(room.installHours), { align: R }), cell(`${room.installDays}`, { align: R })],
+        children: [
+          cell(room.name),
+          cell(hrs(room.installHours), { align: R }),
+          cell(`${room.installDays}`, { align: R }),
+          cell(hrs(room.stagingHours), { align: R }),
+        ],
       }),
     );
   }
@@ -423,6 +433,7 @@ export function buildLaborDocument(a: LaborDocArgs): Document {
         cell("TOTAL", { bold: true }),
         cell(hrs(a.result.totalInstallHours), { bold: true, align: R }),
         cell(`${a.result.totalInstallDays}`, { bold: true, align: R }),
+        cell(hrs(a.result.totalStagingHours), { bold: true, align: R }),
       ],
     }),
   );
