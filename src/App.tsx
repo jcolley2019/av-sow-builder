@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BomIntake } from "@/components/BomIntake";
 import { BomReview } from "@/components/BomReview";
+import { SettingsMenu } from "@/components/SettingsMenu";
 import { RemovalsPanel } from "@/components/RemovalsPanel";
 import { StylePanel } from "@/components/StylePanel";
 import { SowPreview } from "@/components/SowPreview";
@@ -62,6 +63,18 @@ function loadCompanyDefault(): string {
   } catch {
     return "";
   }
+}
+
+// True when an extracted customer name is really the integrator's own company
+// (the BOM was prepared by them). Conservative: exact match or a leading-name
+// match after normalizing punctuation/case — so "EOS", "EOS  " and
+// "EOS IT Solutions" match a company of "EOS", but unrelated names don't.
+function isIntegratorName(customer: string, company: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const c = norm(customer);
+  const co = norm(company);
+  if (!c || !co) return false;
+  return c === co || c.startsWith(co + " ") || co.startsWith(c + " ");
 }
 
 function App() {
@@ -216,7 +229,7 @@ function App() {
     setBomError(null);
     setBomBusy(true);
     try {
-      const data = await extractBom(req);
+      const data = await extractBom(req, company.trim() || undefined);
       if (isError(data)) {
         setBomError(data);
         return;
@@ -228,6 +241,11 @@ function App() {
           raw: JSON.stringify(data, null, 2),
         });
         return;
+      }
+      // Backstop: never let the integrator's own name (from Settings) land in
+      // the Customer field — the BOM is usually on the integrator's letterhead.
+      if (data.customer && company.trim() && isIntegratorName(data.customer, company)) {
+        data.customer = null;
       }
       editor.initFromBom(data);
       setSow(null);
@@ -601,6 +619,7 @@ function App() {
               <RotateCcw /> Start over
             </Button>
           )}
+          <SettingsMenu company={company} onCompanyChange={updateCompany} />
         </div>
       </header>
 

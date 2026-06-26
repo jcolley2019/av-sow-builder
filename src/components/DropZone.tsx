@@ -34,12 +34,17 @@ export function DropZone({
     [onFiles],
   );
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
     accept,
     multiple,
     onDrop,
     disabled: disabled || busy,
   });
+
+  // Surface type-rejected files. react-dropzone drops them from onDrop, so
+  // without this a wrong-type drag/selection fails silently (no callback, no
+  // console, no network) — the user just sees nothing happen.
+  const rejected = !busy && fileRejections.length > 0 ? fileRejections : null;
 
   return (
     <div
@@ -61,6 +66,13 @@ export function DropZone({
         {busy ? "Extracting…" : title}
       </div>
       {!busy && <div className="text-xs text-muted-foreground">{hint}</div>}
+      {rejected && (
+        <div className="mt-1 text-xs font-medium text-destructive">
+          {rejected.length === 1
+            ? `“${rejected[0].file.name}” isn’t accepted here — ${hint} only.`
+            : `${rejected.length} files aren’t accepted here — ${hint} only.`}
+        </div>
+      )}
     </div>
   );
 }

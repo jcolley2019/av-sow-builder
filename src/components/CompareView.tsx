@@ -180,7 +180,7 @@ export function CompareView({
                 onFiles={onCompareFiles}
                 icon={<GitCompareArrows className="h-5 w-5" />}
                 title="Drop the comparison list"
-                hint=".xlsx · .xls · .csv · .pdf · .png · .jpg · .webp"
+                hint=".xlsx · .xlsm · .xls · .csv · .pdf · .png · .jpg · .webp"
                 className="py-5"
               />
               <div className="space-y-2">

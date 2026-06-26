@@ -79,7 +79,22 @@ function contextBlock(raw: unknown): string {
 export async function extractBomCore(body: Body): Promise<unknown> {
   let raw = "";
   try {
-    const content = buildContent(body ?? {}, BOM_SHAPE);
+    const b = (body ?? {}) as Body;
+    const content = buildContent(b, BOM_SHAPE);
+    // Integrator name (from Settings) — tell the model this party PREPARED the
+    // BOM so it is never returned as the customer.
+    const integrator = typeof b.company === "string" ? b.company.trim() : "";
+    if (integrator) {
+      content.push({
+        type: "text",
+        text:
+          `\n\nINTEGRATOR / PREPARER (NOT the customer): "${integrator}". This is the ` +
+          `AV company preparing this BOM. NEVER output "${integrator}" (or a close ` +
+          `variant) as 'customer'. If the only prominent company/logo on the sheet is ` +
+          `"${integrator}", set customer to null unless a DIFFERENT end-client name is ` +
+          `clearly labeled (e.g. 'Customer:', 'Sold To:', 'Ship To:', 'Prepared for:').`,
+      });
+    }
     const msg = await callClaude({
       model: MODEL,
       system: BOM_SYSTEM,

@@ -12,13 +12,18 @@ export const BOM_SYSTEM =
   "invent equipment. 'ofe' is true when a line is shown as existing / " +
   "owner-furnished / to-be-reused — meaning it STAYS in the system; otherwise " +
   "false. Do NOT mark anything as removed; removals are not part of the BOM. " +
-  "Capture the CUSTOMER / CLIENT / COMPANY the work is for: look ANYWHERE in the " +
-  "document — cover page, title block, document header or footer, logo or company " +
-  "text, and labels such as 'Customer:', 'Client:', 'Company:', 'Sold To:', or " +
-  "'Prepared for:'. The customer name is usually on the cover/title, NOT in the " +
-  "by-system line items. Put it in 'customer'; if it genuinely does not appear " +
-  "anywhere, leave customer null — never invent it. projectName and projectNumber " +
-  "likewise come from the cover / title block. " +
+  "Capture the CUSTOMER — the END CLIENT the work is being delivered FOR, NOT the " +
+  "company that prepared the BOM. Look on the cover page, title block, and " +
+  "header/footer for labels such as 'Customer:', 'Client:', 'Sold To:', 'Ship To:', " +
+  "'End User:', 'Site:', or 'Prepared for:'. IGNORE the integrator / vendor / " +
+  "reseller / AV firm who AUTHORED the document: do NOT use a letterhead or logo, " +
+  "nor labels like 'Prepared by:', 'From:', 'Vendor:', 'Supplier:', 'Quoted by:', or " +
+  "'Company:' as the customer — that party is the integrator, captured separately. " +
+  "The customer name is usually on the cover/title, NOT in the by-system line items. " +
+  "Put it in 'customer'; if no distinct end client appears (e.g. only the preparer's " +
+  "own company is shown), leave customer null — never invent it and never fall back " +
+  "to the integrator/preparer. projectName and projectNumber likewise come from the " +
+  "cover / title block. " +
   "Return ONLY valid minified JSON for { customer, projectName, projectNumber, " +
   "locations }, no prose, no fences.";
 
@@ -49,9 +54,9 @@ export const BOM_SHAPE =
   '{"customer":string|null,"projectName":string|null,"projectNumber":string|null,' +
   '"locations":[{"name":string,"systems":[{"name":string,"items":[' +
   '{"qty":number,"manufacturer":string,"model":string,"description":string,"ofe":boolean}]}]}]}\n' +
-  "customer is the client/company the work is for (from the cover/title/header — " +
-  "not a line item); null only if truly absent. projectName and projectNumber " +
-  "come from the title block. " +
+  "customer is the END CLIENT the work is for (from the cover/title/header — not a " +
+  "line item, and NEVER the integrator/vendor/preparer who authored the BOM); null " +
+  "only if truly absent. projectName and projectNumber come from the title block. " +
   "Group every line item under its Location (room/space) and System. " +
   "qty is a number; ofe is a boolean (true only when existing/owner-furnished/reused).";
 

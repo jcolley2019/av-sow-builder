@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 // Spreadsheets are parsed client-side (SheetJS) into CSV text across ALL
 // sheets; PDFs and images are read to base64 and sent as document/image.
 
-export const SPREADSHEET_EXTS = ["xlsx", "xls", "csv"] as const;
+export const SPREADSHEET_EXTS = ["xlsx", "xlsm", "xls", "csv"] as const;
 export const PDF_EXTS = ["pdf"] as const;
 export const IMAGE_EXTS = ["png", "jpg", "jpeg", "webp"] as const;
 
@@ -35,6 +35,7 @@ export function classifyFile(file: File): FileKind {
 /** react-dropzone `accept` maps. */
 export const BOM_ACCEPT: Record<string, string[]> = {
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+  "application/vnd.ms-excel.sheet.macroEnabled.12": [".xlsm"],
   "application/vnd.ms-excel": [".xls"],
   "text/csv": [".csv"],
   "application/pdf": [".pdf"],

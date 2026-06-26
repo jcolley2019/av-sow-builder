@@ -212,7 +212,7 @@ export function LaborView({
               onFiles={onFiles}
               icon={<PackageOpen className="h-5 w-5" />}
               title={isDropped ? "Drop to replace the list" : "Drop an equipment list or BOM"}
-              hint=".xlsx · .xls · .csv · .pdf · .png · .jpg · .webp"
+              hint=".xlsx · .xlsm · .xls · .csv · .pdf · .png · .jpg · .webp"
               className="py-5"
             />
             <div className="space-y-2">

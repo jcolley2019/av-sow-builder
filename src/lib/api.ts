@@ -129,8 +129,16 @@ export async function removalsDrawingFromFile(file: File): Promise<RemovalsDrawi
 
 // --- Endpoint calls --------------------------------------------------------
 
-export function extractBom(body: BomRequest): Promise<BomExtract | ExtractError> {
-  return postJson<BomExtract | ExtractError>("/api/extract-bom", body);
+export function extractBom(
+  body: BomRequest,
+  company?: string,
+): Promise<BomExtract | ExtractError> {
+  // `company` is the integrator (from Settings). Sent so the model never
+  // mistakes the preparer's own name on the letterhead for the customer.
+  return postJson<BomExtract | ExtractError>(
+    "/api/extract-bom",
+    company ? { ...body, company } : body,
+  );
 }
 
 export function extractRemovals(

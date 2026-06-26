@@ -166,7 +166,7 @@ export function BomIntake({
                 onFiles={onBomFiles}
                 icon={<FileSpreadsheet className="h-6 w-6" />}
                 title="Drop BOM file or click to browse"
-                hint=".xlsx · .xls · .csv · .pdf · .png · .jpg · .webp"
+                hint=".xlsx · .xlsm · .xls · .csv · .pdf · .png · .jpg · .webp"
               />
 
               <div className="space-y-2">
