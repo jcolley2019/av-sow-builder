@@ -49,7 +49,7 @@ import {
 } from "@/lib/api";
 import type { BomDoc, RomDoc, SowDoc } from "@/lib/types";
 
-type OutputMode = "sow" | "rom" | "compare";
+type OutputMode = "sow" | "custom" | "rom" | "compare";
 
 type TopView = "builder" | "labor";
 
@@ -160,6 +160,13 @@ function App() {
   const [styleAnalysis, setStyleAnalysis] = useState<StyleAnalysis | null>(null);
   const [styleBusy, setStyleBusy] = useState(false);
   const [styleError, setStyleError] = useState<ExtractError | null>(null);
+
+  // Custom SOW mode: 1–2 example SOWs whose voice/structure the output matches.
+  // Kept SEPARATE from the Match-a-Style state above (different flow/UI).
+  type CustomExample = { filename: string; text: string };
+  const [customExamples, setCustomExamples] = useState<CustomExample[]>([]);
+  const [customExBusy, setCustomExBusy] = useState(false);
+  const [customExError, setCustomExError] = useState<ExtractError | null>(null);
 
   // Compare mode: a second (read-only) equipment list + a dependency check.
   const [compareBom, setCompareBom] = useState<BomDoc | null>(null);
@@ -319,9 +326,13 @@ function App() {
         }
         setRom(data);
       } else {
+        // Custom SOW matches the dropped example(s); Standard keeps its own
+        // Match-a-Style inputs unchanged.
+        const customStyle = mode === "custom" ? buildCustomStyleSample() : "";
         const data = await generateSow(editor.doc, meta, {
-          styleSample: styleSample ?? undefined,
-          styleMode,
+          styleSample:
+            mode === "custom" ? customStyle || undefined : styleSample ?? undefined,
+          styleMode: mode === "custom" ? "match" : styleMode,
           context,
         });
         if (isError(data)) {
@@ -377,6 +388,47 @@ function App() {
     setStyleError(null);
     setStyleBusy(false);
     setStyleMode("house");
+  }
+
+  // --- Custom SOW: ingest up to 2 example SOWs (text only, file-based) ------
+  async function addCustomExamples(files: File[]) {
+    const room = 2 - customExamples.length;
+    const take = files.slice(0, Math.max(0, room));
+    if (take.length === 0) return;
+    setCustomExError(null);
+    setCustomExBusy(true);
+    try {
+      for (const f of take) {
+        const text = (await extractStyleText(f)).trim();
+        if (!text) {
+          setCustomExError({ error: `No text could be read from ${f.name}.` });
+          continue;
+        }
+        setCustomExamples((prev) =>
+          prev.length >= 2 ? prev : [...prev, { filename: f.name, text }],
+        );
+      }
+    } catch (e) {
+      setCustomExError({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setCustomExBusy(false);
+    }
+  }
+  function removeCustomExample(idx: number) {
+    setCustomExamples((p) => p.filter((_, i) => i !== idx));
+  }
+  function clearCustomExamples() {
+    setCustomExamples([]);
+    setCustomExError(null);
+    setCustomExBusy(false);
+  }
+  // Custom SOW: combine the 1–2 example SOWs into ONE labeled style sample for
+  // generateSow (backend slices to 40k chars). Returns "" when none.
+  function buildCustomStyleSample(): string {
+    if (customExamples.length === 0) return "";
+    return customExamples
+      .map((ex, i) => `=== EXAMPLE SOW ${i + 1} (${ex.filename}) ===\n${ex.text}`)
+      .join("\n\n");
   }
 
   // --- Compare: extract a second list (read-only) + dependency check -------
@@ -456,6 +508,7 @@ function App() {
     setSowError(null);
     setMode("sow");
     clearStyle();
+    clearCustomExamples();
     clearCompare();
     setDepFlags(null);
     setDepError(null);
@@ -599,6 +652,13 @@ function App() {
                 bomError={bomError}
                 demo={demo}
                 removalsCount={editor.removals.length}
+                custom={mode === "custom"}
+                examples={customExamples}
+                examplesBusy={customExBusy}
+                examplesError={customExError}
+                onAddExamples={addCustomExamples}
+                onRemoveExample={removeCustomExample}
+                onClearExamples={clearCustomExamples}
               />
             ) : (
               <div className="space-y-4 lg:flex lg:flex-1 lg:flex-col lg:[&>*:last-child]:flex-1">
@@ -655,7 +715,15 @@ function App() {
                         className={segClass(mode === "sow")}
                         onClick={() => setMode("sow")}
                       >
-                        Delivery SOW
+                        Standard SOW
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={mode === "custom"}
+                        className={segClass(mode === "custom")}
+                        onClick={() => setMode("custom")}
+                      >
+                        Custom SOW
                       </button>
                       <button
                         type="button"
