@@ -93,6 +93,56 @@ export function responseText(msg: Anthropic.Message): string {
     .join("");
 }
 
+/**
+ * Parse a model response expected to contain JSON, with diagnostics.
+ *
+ * The naked failure mode is a cryptic "Expected ',' or ']' after array element
+ * in JSON at position N" — which looks like a code bug. This distinguishes the
+ * two real causes and logs the deciding signal (stop_reason + output token
+ * count) so we never guess again:
+ *
+ *  - stop_reason "max_tokens"  → genuine output-cap truncation (a bigger cap is
+ *                                the right lever).
+ *  - any other stop_reason     → the model believes it finished but emitted
+ *                                malformed/oversized JSON (runaway repetition,
+ *                                phantom rows, or a bloated input). A bigger cap
+ *                                does nothing here — look at the raw output.
+ *
+ * Call AFTER capturing responseText so the partial/raw output is still returned
+ * to the client as `raw` (the "Show raw model output" toggle).
+ */
+export function parseModelJson(
+  msg: Anthropic.Message,
+  raw: string,
+  shape: "object" | "array",
+): unknown {
+  const outTokens = msg.usage?.output_tokens;
+  const sig = `stop_reason=${msg.stop_reason} output_tokens=${outTokens ?? "?"} chars=${raw.length}`;
+
+  if (msg.stop_reason === "max_tokens") {
+    console.warn(`[extract] response truncated at output cap — ${sig}`);
+    throw new Error(
+      "The model's response was cut off at the output-token limit, so the " +
+        "result is incomplete. The input is likely too large to process in one " +
+        "pass — split it into smaller parts (e.g. by room or section), or remove " +
+        "rows that aren't AV/UC equipment, then run it again.",
+    );
+  }
+
+  try {
+    return JSON.parse(extractJsonText(raw, shape));
+  } catch {
+    console.warn(`[extract] model output is not valid JSON — ${sig}`);
+    throw new Error(
+      `The model returned text that isn't valid JSON (${sig}). It finished on ` +
+        `its own rather than hitting the token limit, so this is a malformed or ` +
+        `runaway output, not a length cap — the full output is shown below. If ` +
+        `it repeats rows or includes content from sheets other than the BOM, the ` +
+        `cause is the input/prompt, not max_tokens.`,
+    );
+  }
+}
+
 /** Strip ``` fences and isolate the first JSON object/array if surrounded by prose. */
 export function extractJsonText(raw: string, shape: "object" | "array"): string {
   let t = raw.trim();
