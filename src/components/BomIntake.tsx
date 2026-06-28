@@ -34,6 +34,9 @@ type Props = {
   onAddExamples?: (files: File[]) => void;
   onRemoveExample?: (idx: number) => void;
   onClearExamples?: () => void;
+  onSaveStyle?: (name: string) => void;
+  saveStyleBusy?: boolean;
+  saveStyleMsg?: string | null;
 };
 
 export function BomIntake({
@@ -50,10 +53,14 @@ export function BomIntake({
   onAddExamples,
   onRemoveExample,
   onClearExamples,
+  onSaveStyle,
+  saveStyleBusy,
+  saveStyleMsg,
 }: Props) {
   const [pasted, setPasted] = React.useState("");
   const [roomName, setRoomName] = React.useState("");
   const [manualOpen, setManualOpen] = React.useState(false);
+  const [styleName, setStyleName] = React.useState("");
 
   async function addRoom() {
     const ok = await onBomPaste(pasted, roomName);
@@ -152,6 +159,27 @@ export function BomIntake({
               {examplesError && (
                 <RawError error={examplesError} label="Example read failed" />
               )}
+
+              {/* Save the current example(s) to the style library. */}
+              <div className="space-y-2 border-t border-border pt-2.5">
+                <Input
+                  value={styleName}
+                  onChange={(e) => setStyleName(e.target.value)}
+                  placeholder="Name this style, e.g. DHL style"
+                />
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    disabled={saveStyleBusy || styleName.trim().length === 0}
+                    onClick={() => onSaveStyle?.(styleName)}
+                  >
+                    {saveStyleBusy ? "Saving…" : "Save this style"}
+                  </Button>
+                </div>
+                {saveStyleMsg && (
+                  <p className="text-xs text-muted-foreground">{saveStyleMsg}</p>
+                )}
+              </div>
             </div>
           )}
 

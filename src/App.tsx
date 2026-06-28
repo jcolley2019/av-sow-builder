@@ -49,6 +49,7 @@ import {
   type StyleMode,
 } from "@/lib/api";
 import type { BomDoc, RomDoc, SowDoc } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
 
 type OutputMode = "sow" | "custom" | "rom" | "compare";
 
@@ -239,6 +240,9 @@ function App() {
   const [customExamples, setCustomExamples] = useState<CustomExample[]>([]);
   const [customExBusy, setCustomExBusy] = useState(false);
   const [customExError, setCustomExError] = useState<ExtractError | null>(null);
+  // Save-to-library status for the current custom examples.
+  const [saveStyleBusy, setSaveStyleBusy] = useState(false);
+  const [saveStyleMsg, setSaveStyleMsg] = useState<string | null>(null);
 
   // Compare mode: a second (read-only) equipment list + a dependency check.
   const [compareBom, setCompareBom] = useState<BomDoc | null>(null);
@@ -512,6 +516,37 @@ function App() {
       .map((ex, i) => `=== EXAMPLE SOW ${i + 1} (${ex.filename}) ===\n${ex.text}`)
       .join("\n\n");
   }
+  // Save the current custom example(s) to the Supabase style library. Guarded:
+  // no-op with a message when the client isn't configured or no examples exist.
+  async function saveCustomStyle(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (!supabase) {
+      setSaveStyleMsg("Style library not configured.");
+      return;
+    }
+    const source_text = buildCustomStyleSample();
+    if (!source_text) {
+      setSaveStyleMsg("Add at least one example first.");
+      return;
+    }
+    setSaveStyleBusy(true);
+    setSaveStyleMsg(null);
+    try {
+      const { error } = await supabase
+        .from("sow_styles")
+        .insert({ name: trimmed, source_text });
+      if (error) {
+        setSaveStyleMsg(`Save failed: ${error.message}`);
+        return;
+      }
+      setSaveStyleMsg(`Saved "${trimmed}" ✓`);
+    } catch (e) {
+      setSaveStyleMsg(e instanceof Error ? e.message : "Save failed.");
+    } finally {
+      setSaveStyleBusy(false);
+    }
+  }
 
   // --- Compare: extract a second list (read-only) + dependency check -------
   async function ingestCompare(req: BomRequest, filename: string) {
@@ -730,6 +765,9 @@ function App() {
                 onAddExamples={addCustomExamples}
                 onRemoveExample={removeCustomExample}
                 onClearExamples={clearCustomExamples}
+                onSaveStyle={saveCustomStyle}
+                saveStyleBusy={saveStyleBusy}
+                saveStyleMsg={saveStyleMsg}
               />
             ) : (
               <div className="space-y-4 lg:flex lg:flex-1 lg:flex-col lg:[&>*:last-child]:flex-1">
