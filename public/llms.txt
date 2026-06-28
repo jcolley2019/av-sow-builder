@@ -1,0 +1,15 @@
+# ScopeCraftAI
+
+> AI-powered Scope of Work and Bill of Materials generation for AV and IT integration professionals.
+
+ScopeCraftAI turns a bill of materials into a professional, delivery-ready Scope of Work document in minutes. Built for AV/UC presales engineers, integrators, and IT professionals who write proposals.
+
+## What it does
+- Generate a Scope of Work from a dropped BOM (Excel, CSV, PDF, or pasted text).
+- Per-room manual entry with automatic classification into AV systems (Display, Audio, Video, Conferencing, Control, Network, Rack/Power/Peripherals).
+- ROM summaries, labor and travel estimates, and .docx export.
+
+## Key facts
+- URL: https://scopecraftai.app
+- Audience: AV/UC integrators, presales engineers, IT proposal teams.
+- Output: professional Scope of Work and Bill of Materials documents.
