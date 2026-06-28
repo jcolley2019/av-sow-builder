@@ -156,7 +156,7 @@ export function BomIntake({
           )}
 
           {/* Zone 1 — BILL OF MATERIALS (required) */}
-          <Card>
+          <Card className="border-border bg-panel/60 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgb(255_255_255/0.06),0_1px_2px_rgb(0_0_0/0.25),0_22px_50px_-24px_rgb(0_0_0/0.65)]">
             <CardHeader className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="eyebrow text-primary">Required</span>

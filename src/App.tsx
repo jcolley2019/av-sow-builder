@@ -77,6 +77,65 @@ function isIntegratorName(customer: string, company: string): boolean {
   return c === co || c.startsWith(co + " ") || co.startsWith(c + " ");
 }
 
+// A segmented control whose active "pill" slides between options with a spring
+// (framer-motion layoutId). Used for both the top view switch and the output-
+// mode switch — each instance gets its own layoutId so the pill animates only
+// within its own group. `animate` is gated by reduced-motion (static pill then).
+function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+  layoutId,
+  animate,
+  className,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+  layoutId: string;
+  animate: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative inline-flex rounded-md border border-border bg-panel/50 p-0.5 shadow-[inset_0_1px_0_0_rgb(255_255_255/0.05)]",
+        className,
+      )}
+    >
+      {options.map((opt) => {
+        const on = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "relative rounded-[5px] px-3 py-1 font-mono text-xs transition-colors duration-200",
+              on
+                ? "text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {on &&
+              (animate ? (
+                <motion.span
+                  layoutId={layoutId}
+                  transition={{ type: "spring", stiffness: 440, damping: 36 }}
+                  className="seg-pill absolute inset-0 rounded-[5px]"
+                />
+              ) : (
+                <span className="seg-pill absolute inset-0 rounded-[5px]" />
+              ))}
+            <span className="relative z-10">{opt.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function App() {
   const editor = useBomEditor();
   const labor = useLaborModel();
@@ -568,11 +627,6 @@ function App() {
     }
   }
 
-  const segClass = (on: boolean) =>
-    cn(
-      "rounded-[5px] px-3 py-1 font-mono text-xs transition-colors",
-      on ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-    );
   const modeLabel = mode === "rom" ? "ROM summary" : "Scope of Work";
 
   const load = reduce
@@ -584,39 +638,32 @@ function App() {
       };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground lg:h-full lg:min-h-0 lg:overflow-hidden">
+    <div className="desk flex min-h-screen flex-col text-foreground lg:h-full lg:min-h-0 lg:overflow-hidden">
       {/* Instrument top bar — fixed; the panes scroll beneath it. */}
-      <header className="sticky top-0 z-20 shrink-0 border-b border-border bg-background/85 backdrop-blur">
+      <header className="sticky top-0 z-20 shrink-0 border-b border-border bg-panel/70 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgb(255_255_255/0.06)]">
         <div className="mx-auto flex h-14 max-w-[1500px] items-center gap-3 px-4 sm:px-6">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <FileText className="h-[18px] w-[18px]" strokeWidth={2.25} />
           </div>
           <div className="flex flex-col">
             <span className="font-mono text-base font-semibold leading-none tracking-tight">
-              SOW Generator
+              ScopeCraft<span className="text-primary">AI</span>
             </span>
-            <span className="eyebrow mt-1">Delivery Scope</span>
+            <span className="eyebrow mt-1">SOW Generator</span>
           </div>
 
           {/* Top-level view switch — both views share the in-memory project. */}
-          <div className="ml-2 inline-flex rounded-md border border-border p-0.5">
-            <button
-              type="button"
-              aria-pressed={view === "builder"}
-              className={segClass(view === "builder")}
-              onClick={() => setView("builder")}
-            >
-              SOW Builder
-            </button>
-            <button
-              type="button"
-              aria-pressed={view === "labor"}
-              className={segClass(view === "labor")}
-              onClick={() => setView("labor")}
-            >
-              Labor &amp; Travel
-            </button>
-          </div>
+          <Segmented
+            className="ml-2"
+            value={view}
+            onChange={(v) => setView(v)}
+            options={[
+              { value: "builder", label: "SOW Builder" },
+              { value: "labor", label: "Labor & Travel" },
+            ]}
+            layoutId="seg-view"
+            animate={!reduce}
+          />
 
           <div className="flex-1" />
           {view === "builder" && showReview && (
@@ -732,40 +779,18 @@ function App() {
                     {mode === "compare" ? "Reconcile" : "Generate"}
                   </span>
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="inline-flex rounded-md border border-border p-0.5">
-                      <button
-                        type="button"
-                        aria-pressed={mode === "sow"}
-                        className={segClass(mode === "sow")}
-                        onClick={() => setMode("sow")}
-                      >
-                        Standard SOW
-                      </button>
-                      <button
-                        type="button"
-                        aria-pressed={mode === "custom"}
-                        className={segClass(mode === "custom")}
-                        onClick={() => setMode("custom")}
-                      >
-                        Custom SOW
-                      </button>
-                      <button
-                        type="button"
-                        aria-pressed={mode === "rom"}
-                        className={segClass(mode === "rom")}
-                        onClick={() => setMode("rom")}
-                      >
-                        ROM Summary
-                      </button>
-                      <button
-                        type="button"
-                        aria-pressed={mode === "compare"}
-                        className={segClass(mode === "compare")}
-                        onClick={() => setMode("compare")}
-                      >
-                        Compare
-                      </button>
-                    </div>
+                    <Segmented
+                      value={mode}
+                      onChange={(v) => setMode(v)}
+                      options={[
+                        { value: "sow", label: "Standard SOW" },
+                        { value: "custom", label: "Custom SOW" },
+                        { value: "rom", label: "ROM Summary" },
+                        { value: "compare", label: "Compare" },
+                      ]}
+                      layoutId="seg-mode"
+                      animate={!reduce}
+                    />
                     {mode !== "compare" && (
                       <div className="flex flex-wrap items-center gap-2">
                         {activeDoc && (

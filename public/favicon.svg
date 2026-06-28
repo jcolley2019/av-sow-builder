@@ -1,0 +1,5 @@
+<svg viewBox="0 0 88 88" xmlns="http://www.w3.org/2000/svg">
+  <path d="M14 10 H66 L78 22 V74 a4 4 0 0 1 -4 4 H14 a4 4 0 0 1 -4 -4 V14 a4 4 0 0 1 4 -4 Z" fill="#2563EB1F" stroke="#2563EB" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M66 10 V22 H78" fill="none" stroke="#2563EB" stroke-width="3" stroke-linejoin="round"/>
+  <text x="42" y="51" dominant-baseline="central" text-anchor="middle" font-family="ui-monospace, monospace" font-size="18" font-weight="700" letter-spacing="-1" fill="#2563EB">SOW</text>
+</svg>
