@@ -11,6 +11,7 @@ import {
   BOM_SYSTEM,
   CENTENE_EXEMPLAR,
   DEPENDENCY_SYSTEM,
+  pasteRoomDirective,
   REMOVALS_SHAPE,
   REMOVALS_SYSTEM,
   ROM_SYSTEM,
@@ -95,6 +96,13 @@ export async function extractBomCore(body: Body): Promise<unknown> {
           `"${integrator}", set customer to null unless a DIFFERENT end-client name is ` +
           `clearly labeled (e.g. 'Customer:', 'Sold To:', 'Ship To:', 'Prepared for:').`,
       });
+    }
+    // Manual per-room paste lane: when a roomName is present, force a single
+    // named location and classify items into the canonical system set. Gated on
+    // roomName so a dropped file (no roomName) is never reclassified.
+    const roomName = typeof b.roomName === "string" ? b.roomName.trim() : "";
+    if (roomName) {
+      content.push({ type: "text", text: pasteRoomDirective(roomName) });
     }
     const msg = await callClaude({
       model: MODEL,

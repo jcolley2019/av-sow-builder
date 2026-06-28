@@ -225,14 +225,14 @@ function App() {
   }, [sowBusy]);
 
   // --- BOM extraction (file or paste) --------------------------------------
-  async function runBom(req: BomRequest) {
+  async function runBom(req: BomRequest): Promise<boolean> {
     setBomError(null);
     setBomBusy(true);
     try {
       const data = await extractBom(req, company.trim() || undefined);
       if (isError(data)) {
         setBomError(data);
-        return;
+        return false;
       }
       if (!data.locations || data.locations.length === 0) {
         setBomError({
@@ -240,21 +240,23 @@ function App() {
             "No locations were extracted from the BOM. Check the file or text and try again.",
           raw: JSON.stringify(data, null, 2),
         });
-        return;
+        return false;
       }
       // Backstop: never let the integrator's own name (from Settings) land in
       // the Customer field — the BOM is usually on the integrator's letterhead.
       if (data.customer && company.trim() && isIntegratorName(data.customer, company)) {
         data.customer = null;
       }
-      editor.initFromBom(data);
+      editor.appendBom(data);
       setSow(null);
       setRom(null);
       setSowError(null);
       setDepFlags(null); // dependency flags are stale against a new BOM
       labor.reset(); // per-project labor edits are stale against a new BOM
+      return true;
     } catch (e) {
       setBomError({ error: e instanceof Error ? e.message : String(e) });
+      return false;
     } finally {
       setBomBusy(false);
     }
@@ -269,8 +271,11 @@ function App() {
     }
   }
 
-  function handleBomPaste(text: string) {
-    void runBom({ kind: "text", text });
+  // Paste lane = manual per-room entry: the user names the room and pastes that
+  // room's equipment. `roomName` forces a single named location + server-side
+  // system classification. Returns success so the paste box can clear on add.
+  function handleBomPaste(text: string, roomName: string): Promise<boolean> {
+    return runBom({ kind: "text", text, roomName });
   }
 
   // --- Removals extraction (guided: direction + optional drawings) ---------

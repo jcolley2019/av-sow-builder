@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DropZone } from "@/components/DropZone";
 import { RawError } from "@/components/RawError";
@@ -18,7 +19,7 @@ import type { ExtractError } from "@/lib/api";
 
 type Props = {
   onBomFiles: (files: File[]) => void;
-  onBomPaste: (text: string) => void;
+  onBomPaste: (text: string, roomName: string) => Promise<boolean>;
   bomBusy: boolean;
   bomError: ExtractError | null;
 
@@ -51,6 +52,15 @@ export function BomIntake({
   onClearExamples,
 }: Props) {
   const [pasted, setPasted] = React.useState("");
+  const [roomName, setRoomName] = React.useState("");
+
+  async function addRoom() {
+    const ok = await onBomPaste(pasted, roomName);
+    if (ok) {
+      setPasted("");
+      setRoomName("");
+    }
+  }
 
   const isCustom = !!custom;
   const exs = examples ?? [];
@@ -170,9 +180,24 @@ export function BomIntake({
               />
 
               <div className="space-y-2">
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="bom-room-name"
+                    className="text-xs font-medium text-muted-foreground"
+                  >
+                    Room / location name
+                  </label>
+                  <Input
+                    id="bom-room-name"
+                    value={roomName}
+                    onChange={(e) => setRoomName(e.target.value)}
+                    placeholder="Room 202"
+                    disabled={bomBusy}
+                  />
+                </div>
                 <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                   <ClipboardPaste className="h-3.5 w-3.5" />
-                  Or paste BOM text
+                  Paste this room's equipment
                 </div>
                 <Textarea
                   value={pasted}
@@ -184,10 +209,14 @@ export function BomIntake({
                 <div className="flex justify-end">
                   <Button
                     size="sm"
-                    disabled={bomBusy || pasted.trim().length === 0}
-                    onClick={() => onBomPaste(pasted)}
+                    disabled={
+                      bomBusy ||
+                      roomName.trim().length === 0 ||
+                      pasted.trim().length === 0
+                    }
+                    onClick={addRoom}
                   >
-                    Extract pasted BOM
+                    Add room
                   </Button>
                 </div>
               </div>

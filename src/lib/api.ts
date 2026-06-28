@@ -30,7 +30,10 @@ export type DependencyFlag = {
 // extraction endpoints. Both endpoints return { error, raw } on failure.
 
 export type BomRequest =
-  | { kind: "text"; filename?: string; text: string }
+  // `roomName` is set only by the manual paste lane (per-room entry): it forces
+  // a single named location and triggers system classification server-side. The
+  // file/PDF/image dropzone never sets it, so those stay faithful mirrors.
+  | { kind: "text"; filename?: string; text: string; roomName?: string }
   | { kind: "pdf"; filename?: string; mime?: string; dataB64: string }
   | { kind: "image"; filename?: string; mime?: string; dataB64: string };
 

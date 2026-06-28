@@ -47,6 +47,46 @@ function removeAt<T>(arr: T[], i: number): T[] {
   return arr.filter((_, idx) => idx !== i);
 }
 
+// SOW.21 — canonical EOS system order. On intake, every location's systems are
+// re-sorted into this fixed sequence regardless of the order extraction returns
+// them, so rooms always read Display, Audio, Video, then the rest. The deterministic
+// guarantee lives here in code (not in an LLM prompt), so it holds for BOTH the
+// paste lane and dropped spreadsheets. Live editing (addSystem/renameSystem) does
+// NOT re-sort — ordering is applied only at initFromBom/appendBom.
+const SYSTEM_ORDER = [
+  "Display",
+  "Audio",
+  "Video",
+  "Conferencing",
+  "Control",
+  "Network",
+  "Rack, Power, and Peripherals",
+];
+
+// Rank a system by its leading keyword (case-insensitive), so dropzone variants
+// like "Audio System", "Video Distribution", or "Rack & Power" still slot into
+// the canonical buckets. Unrecognized names sort to the end.
+function systemRank(name: string): number {
+  const n = name.trim().toLowerCase();
+  const i = SYSTEM_ORDER.findIndex((label) => {
+    const key = label.split(",")[0].trim().toLowerCase();
+    return n === key || n.startsWith(key);
+  });
+  return i === -1 ? SYSTEM_ORDER.length : i;
+}
+
+function orderSystems(systems: BomSystem[]): BomSystem[] {
+  // Stable: equal-rank systems (incl. unrecognized) keep their original order.
+  return systems
+    .map((s, i) => ({ s, i }))
+    .sort((a, b) => systemRank(a.s.name) - systemRank(b.s.name) || a.i - b.i)
+    .map(({ s }) => s);
+}
+
+function orderLocations(locations: BomRoom[]): BomRoom[] {
+  return locations.map((loc) => ({ ...loc, systems: orderSystems(loc.systems) }));
+}
+
 type Core = BomExtract;
 type Meta = Pick<BomDoc, "customer" | "projectName" | "projectNumber">;
 
@@ -81,7 +121,24 @@ export function useBomEditor() {
   }, [core]);
 
   // --- lifecycle -----------------------------------------------------------
-  const initFromBom = useCallback((extract: Core) => setCore(extract), []);
+  const initFromBom = useCallback(
+    (extract: Core) =>
+      setCore({ ...extract, locations: orderLocations(extract.locations) }),
+    [],
+  );
+  // Additive intake: a newly extracted BOM appends its locations onto the rooms
+  // already in state, so a user can build a multi-room SOW one report at a time.
+  // First add wins for metadata (customer/projectName/projectNumber); later adds
+  // contribute only locations. No same-room logic — rooms arrive named and are
+  // never added twice, so just concatenate (no match/merge/dedup). Each incoming
+  // location's systems are re-ordered into the canonical sequence (SOW.21).
+  const appendBom = useCallback((extract: Core) => {
+    const incoming = orderLocations(extract.locations);
+    setCore((prev) => {
+      if (!prev) return { ...extract, locations: incoming };
+      return { ...prev, locations: [...prev.locations, ...incoming] };
+    });
+  }, []);
   const reset = useCallback(() => {
     setCore(null);
     setRemovals([]);
@@ -241,6 +298,7 @@ export function useBomEditor() {
     setProjectContext,
     setRoomNote,
     initFromBom,
+    appendBom,
     reset,
     setMeta,
     addRoom,

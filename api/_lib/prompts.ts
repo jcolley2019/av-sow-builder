@@ -64,6 +64,42 @@ export const REMOVALS_SHAPE =
   "Use EXACTLY this JSON shape and these key names (minified, no fences):\n" +
   '[{"qty":number,"manufacturer":string,"model":string,"description":string,"location":string|null}]';
 
+// Paste lane (manual per-room entry) directive. Injected per-request ONLY when
+// the text path carries a roomName — never for a dropped file, so the file
+// dropzone stays a faithful mirror. Forces a single named location and buckets
+// every item into the canonical seven-system set (present-only, in this order).
+export function pasteRoomDirective(roomName: string): string {
+  return (
+    `MANUAL ROOM ENTRY. The pasted text is the equipment for ONE room. Return ` +
+    `EXACTLY ONE location whose "name" is "${roomName}" — use this exact name ` +
+    `regardless of any room/area label found in the pasted text. ` +
+    `Assign EVERY line item to exactly one of these seven systems, and emit ONLY ` +
+    `the systems that actually have items, named EXACTLY as below and in THIS order:\n` +
+    `1. Display — displays, monitors, TVs, projectors/screens, and their mounts/carts.\n` +
+    `2. Video — video switching/distribution, matrices, extenders/transmitters/` +
+    `receivers, scalers, and media players (non-conferencing).\n` +
+    `3. Audio — DSP / audio processors, amplifiers, loudspeakers, microphones ` +
+    `(ceiling, table, gooseneck), wireless mic systems, and audio interfaces.\n` +
+    `4. Conferencing — codecs, all-in-one UC bars/kits, PTZ conferencing cameras, ` +
+    `room navigators/schedulers, and speakerphones.\n` +
+    `5. Control — control processors, touch panels, keypads/button panels, ` +
+    `occupancy/partition sensors, and IR / relay / I-O interfaces.\n` +
+    `6. Network — network switches, patch panels, wireless access points, and ` +
+    `media converters.\n` +
+    `7. Rack Power and Peripherals — CATCH-ALL: equipment racks, power strips / ` +
+    `PDUs and rack power devices, rack hardware (screws, shelves, blanks, lacing), ` +
+    `individual cables, bulk wire, connectors, and any misc / consumables.\n` +
+    `If the pasted text ALREADY carries system / section headers, HONOR them: map ` +
+    `Display / Video / Audio / Conferencing / Control / Network headers straight ` +
+    `through, and Power / Cabling / Cables / MISC-type headers into "Rack Power and ` +
+    `Peripherals". If there are NO headers, classify by equipment knowledge. ` +
+    `Keep the item fields exactly (qty, manufacturer, model, description, ofe); set ` +
+    `ofe true only when a line is marked [OFE] / owner-furnished / existing / reused. ` +
+    `A single-room paste normally has no cover sheet, so set customer, projectName, ` +
+    `and projectNumber to null unless the pasted text explicitly states them.`
+  );
+}
+
 // --- SOW generation: house style (source of truth) + exemplar ---------------
 // Read shared standards from disk. Locally (tsx) the cwd is the project root.
 // On Vercel the function's cwd is the deployment root and the files are bundled
