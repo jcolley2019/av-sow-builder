@@ -1,5 +1,5 @@
 import * as React from "react";
-import { FileSpreadsheet, ClipboardPaste, Scissors, FileText, X } from "lucide-react";
+import { FileSpreadsheet, ClipboardPaste, Scissors, FileText, X, ChevronDown } from "lucide-react";
 
 import {
   Card,
@@ -53,6 +53,7 @@ export function BomIntake({
 }: Props) {
   const [pasted, setPasted] = React.useState("");
   const [roomName, setRoomName] = React.useState("");
+  const [manualOpen, setManualOpen] = React.useState(false);
 
   async function addRoom() {
     const ok = await onBomPaste(pasted, roomName);
@@ -179,6 +180,19 @@ export function BomIntake({
                 hint=".xlsx · .xlsm · .xls · .csv · .pdf · .png · .jpg · .webp"
               />
 
+              <button
+                type="button"
+                onClick={() => setManualOpen((o) => !o)}
+                className="flex w-full items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50"
+              >
+                <span className="flex items-center gap-2">
+                  <ClipboardPaste className="h-3.5 w-3.5" />
+                  Add a room manually
+                </span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${manualOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {manualOpen && (
               <div className="space-y-2">
                 <div className="space-y-1.5">
                   <label
@@ -220,6 +234,7 @@ export function BomIntake({
                   </Button>
                 </div>
               </div>
+              )}
 
               {bomError && <RawError error={bomError} label="BOM extraction failed" />}
             </CardContent>
