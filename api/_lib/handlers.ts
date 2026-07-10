@@ -38,6 +38,7 @@ import {
   errorMessage,
   extractJsonText,
   imageMediaType,
+  maybeExtractPdfText,
   parseModelJson,
   type RemovalsDrawing,
   removalsGuide,
@@ -81,7 +82,7 @@ function contextBlock(raw: unknown): string {
 export async function extractBomCore(body: Body): Promise<unknown> {
   let raw = "";
   try {
-    const b = (body ?? {}) as Body;
+    const b = await maybeExtractPdfText((body ?? {}) as Body);
     const content = buildContent(b, BOM_SHAPE);
     // Integrator name (from Settings) — tell the model this party PREPARED the
     // BOM so it is never returned as the customer.

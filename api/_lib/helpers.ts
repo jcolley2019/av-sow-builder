@@ -43,6 +43,33 @@ export function imageMediaType(mime?: string, filename?: string): ImageMediaType
 
 export type ContentBlock = Anthropic.ContentBlockParam;
 
+/** Extract the text layer from a base64-encoded PDF. */
+export async function pdfToText(dataB64: string): Promise<string> {
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const bytes = new Uint8Array(Buffer.from(dataB64, "base64"));
+  const pdf = await getDocumentProxy(bytes);
+  const { text } = await extractText(pdf, { mergePages: true });
+  return text;
+}
+
+// If body is a PDF with a real text layer, convert it to the fast text path.
+// Scanned/image-only PDFs (little/no text) and any extraction error fall back
+// to the existing vision `document` path unchanged.
+export async function maybeExtractPdfText<
+  T extends { kind?: string; text?: string; dataB64?: string },
+>(body: T): Promise<T> {
+  if (body?.kind !== "pdf" || !body.dataB64) return body;
+  try {
+    const text = await pdfToText(body.dataB64);
+    if (text.replace(/\s/g, "").length >= 200) {
+      return { ...body, kind: "text", text, dataB64: undefined };
+    }
+  } catch {
+    // keep the vision fallback on any extraction failure
+  }
+  return body;
+}
+
 /** Build the user content block(s) for a request body, led by a shape hint. */
 export function buildContent(
   body: {
