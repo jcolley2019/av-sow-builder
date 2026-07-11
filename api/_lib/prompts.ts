@@ -213,7 +213,7 @@ DOCUMENT ORGANIZATION IN STYLE MATCH MODE:
 - NEVER use the BOM's system/group labels (e.g. "1 - Display & Mount", "3 - Owner Furnished Equipment", numbered prefixes) as section headings. Those reflect the quoting system's organization. Reorganize equipment into the EXAMPLE's section categories.
 - One section per BOM location, carrying the room's name/number from the BOM. Multi-room BOMs get one room section each, all following the same internal organization. Single-room BOMs still follow the example's arc.
 - OFE items appear ONLY within the room's functional sections (or an existing-equipment subsection if the EXAMPLE itself has one). NEVER create a standalone OFE/owner-furnished section, list, or clarification block unless the EXAMPLE contains that exact kind of section.
-- Emit ONLY the section kinds present in the EXAMPLE's arc. Do not add sections the example doesn't have. The complete section list should be reproducible run to run: same example + same BOM = same section plan.`;
+- Emit ONLY the section kinds present in the EXAMPLE's arc. Do not add sections the example doesn't have. The complete section list should be reproducible run to run: same example + same BOM = same section plan. Exception: per-room sections are the one addition ALWAYS permitted and REQUIRED — one section per BOM location carrying its room name/number — even if the EXAMPLE, being a single-room document, has none. Model each room section's internal organization on how the EXAMPLE presents its room content.`;
 
 // Style analysis: compares an example SOW's WRITING STYLE to the house style.
 export const STYLE_ANALYSIS_SYSTEM =
