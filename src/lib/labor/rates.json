@@ -28,8 +28,6 @@
     { "id": "LEAD_IH_PREM",  "description": "Lead install, in-house, premium, per hr",             "price": 150,   "cost": 105 },
     { "id": "LEAD_OS",       "description": "Lead install, on-site, per hr",                       "price": 100,   "cost": 70 },
     { "id": "LEAD_OS_PREM",  "description": "Lead install, on-site, premium, per hr",              "price": 150,   "cost": 105 },
-    { "id": "WL",            "description": "Field wirelisting, per hr",                           "price": 100,   "cost": 70 },
-    { "id": "WL_PREM",       "description": "Field wirelisting, premium, per hr",                  "price": 150,   "cost": 105 },
     { "id": "EXPENSES",      "description": "Travel and other expenses",                           "price": 0,     "cost": 0 }
   ],
   "expenseConstants": {

@@ -29,7 +29,6 @@ export type RateId =
   | 'FE_TRAIN' | 'FE_TRAIN_PREM' | 'FE_EVENT' | 'FE_EVENT_PREM'
   | 'INSTALL_IH' | 'INSTALL_IH_PREM' | 'INSTALL_OS' | 'INSTALL_OS_PREM'
   | 'LEAD_IH' | 'LEAD_IH_PREM' | 'LEAD_OS' | 'LEAD_OS_PREM'
-  | 'WL' | 'WL_PREM'
   | 'EXPENSES';
 
 export interface Rate {
@@ -83,7 +82,6 @@ export type LaborLineKey =
   | 'engineering' | 'engineeringPrem' | 'cad' | 'cadPrem' | 'itProg'
   | 'engTravel' | 'pm' | 'pc' | 'pmTravel'
   | 'progControl' | 'progControlPrem' | 'progDsp' | 'progDspPrem'
-  | 'wirelistingStd' | 'wirelistingPrem'
   | 'leadInHouse' | 'leadInHousePrem' | 'installInHouse' | 'installInHousePrem'
   | 'feInHouseCommissioning' | 'feInHouseCommissioningPrem'
   | 'leadSiteVisit' | 'leadSiteVisitTravel'
@@ -98,7 +96,6 @@ export type DerivedKey = 'fieldLeadSiteVisitTrips' | 'fieldLeadSiteVisitDays' | 
 export interface ProjectInputs {
   numDrawings: number;
   isBroadcast: boolean;
-  wirelisting: PhaseSchedule;
   inHouse: PhaseSchedule;
   onSite: PhaseSchedule;
   engTripsToSite: number;
@@ -116,8 +113,7 @@ export interface ProjectInputs {
   isFieldEngRequired?: boolean;
   /** "Alpha Van" (O28) + "# of Vans" (O29); default disabled. */
   van?: { enabled: boolean; count: number };
-  /** Sub-quoted flags (D20/F20/I20/O25), default false ("No"). */
-  subQuotedWirelisting?: boolean;
+  /** Sub-quoted flags (F20/I20/O25), default false ("No"). */
   subQuotedInHouseBuild?: boolean;
   subQuotedOnSiteBuild?: boolean;
   subQuotedFieldEng?: boolean;
@@ -146,16 +142,12 @@ export interface ExpenseLine {
 }
 
 export interface DerivedValues {
-  wirelistingWorkDays: number;      // D23
   inHouseWorkDays: number;          // F23
   onSiteWorkDays: number;           // I23
-  wirelistingStdHrsAvail: number;   // D25
   inHouseStdHrsAvail: number;       // F25
   onSiteStdHrsAvail: number;        // I25
-  wirelistingTotalHrs: number;      // L21
   inHouseInstallTotalHrs: number;   // L22
   onSiteInstallTotalHrs: number;    // L23
-  wirelistingPremHrsReq: number;    // D29
   inHousePremHrsReq: number;        // D30
   onSitePremHrsReq: number;         // D31
   trainingHoursTotal: number;       // F30
@@ -301,26 +293,21 @@ export function computeProjectEstimate(
   const engDaysOnSite = inputs.engDaysOnSite ?? 0;
   const pmDaysOnSite = inputs.pmDaysOnSite ?? 0;
   const isFieldEng = inputs.isFieldEngRequired ?? true;
-  const subWL = inputs.subQuotedWirelisting ?? false;
   const subIH = inputs.subQuotedInHouseBuild ?? false;
   const subOS = inputs.subQuotedOnSiteBuild ?? false;
   const subFE = inputs.subQuotedFieldEng ?? false;
 
-  // Schedule-driven availability (D23/F23/I23, D25/F25/I25)
-  const wlDays = networkdays(inputs.wirelisting.start, inputs.wirelisting.end);
+  // Schedule-driven availability (F23/I23, F25/I25)
   const ihDays = networkdays(inputs.inHouse.start, inputs.inHouse.end);
   const osDays = networkdays(inputs.onSite.start, inputs.onSite.end);
-  const wlAvail = Math.max(0, wlDays * inputs.wirelisting.crewSize * 8);
   const ihAvail = Math.max(0, ihDays * inputs.inHouse.crewSize * 8);
   const osAvail = Math.max(0, osDays * inputs.onSite.crewSize * 8);
 
-  // Phase hour totals (L21/L22/L23) — each independently CEILINGed to 4
-  const wlTotal = ifError0(excelCeiling(numDwg * 1.5, 4));
+  // Phase hour totals (L22/L23) — each independently CEILINGed to 4
   const ihTotal = ifError0(excelCeiling((ihAvail / (ihAvail + osAvail)) * laborSheetTotalHours, 4));
   const osTotal = ifError0(excelCeiling((osAvail / (ihAvail + osAvail)) * laborSheetTotalHours, 4));
 
-  // Premium hours required by schedule (D29/D30/D31)
-  const wlPremReq = Math.max(0, wlTotal - wlAvail);
+  // Premium hours required by schedule (D30/D31)
   const ihPremReq = Math.max(0, ihTotal - ihAvail);
   const osPremReq = Math.max(0, osTotal - osAvail);
 
@@ -383,10 +370,6 @@ export function computeProjectEstimate(
   const progControlPrem = line('progControlPrem', 'G70', 'PROG_PREM', 'Programming - Control Systems (premium)', 0);
   const progDsp = line('progDsp', 'G71', 'PROG', 'Programming - DSP/Other', 0);
   const progDspPrem = line('progDspPrem', 'G72', 'PROG_PREM', 'Programming - DSP/Other (premium)', 0);
-  line('wirelistingStd', 'G73', 'WL', 'Wirelisting',
-    !subWL ? wlTotal - wlPremReq : 0);
-  line('wirelistingPrem', 'G74', 'WL_PREM', 'Wirelisting (premium)',
-    !subWL ? excelCeiling(wlPremReq, 4) : 0);
   const leadIH = line('leadInHouse', 'G75', 'LEAD_IH', 'Lead In-House Install, Rack Build, and Prep',
     !subIH && ihDays !== 0 ? ihTotal / inputs.inHouse.crewSize : 0);
   line('leadInHousePrem', 'G76', 'LEAD_IH_PREM', 'Lead In-House Install (premium)',
@@ -451,7 +434,7 @@ export function computeProjectEstimate(
   //     G46:G50, G69:G72, G79:G80, G85:G86, G143:G149, then *0.1 + PM days*8,
   //     CEILING to 4. Computed after its inputs so post-adjust values flow in.
   const pmBasis =
-    wlTotal + ihTotal + osTotal + trainingHoursTotal + eventHoursTotal +
+    ihTotal + osTotal + trainingHoursTotal + eventHoursTotal +
     eng.hours.value + engPrem.hours.value + cad.hours.value + cadPrem.hours.value + itProg.hours.value +
     progControl.hours.value + progControlPrem.hours.value + progDsp.hours.value + progDspPrem.hours.value +
     feIH.hours.value + feIHPrem.hours.value +
@@ -494,16 +477,12 @@ export function computeProjectEstimate(
     rooms: roomResults,
     laborSheetTotalHours,
     derived: {
-      wirelistingWorkDays: wlDays,
       inHouseWorkDays: ihDays,
       onSiteWorkDays: osDays,
-      wirelistingStdHrsAvail: wlAvail,
       inHouseStdHrsAvail: ihAvail,
       onSiteStdHrsAvail: osAvail,
-      wirelistingTotalHrs: wlTotal,
       inHouseInstallTotalHrs: ihTotal,
       onSiteInstallTotalHrs: osTotal,
-      wirelistingPremHrsReq: wlPremReq,
       inHousePremHrsReq: ihPremReq,
       onSitePremHrsReq: osPremReq,
       trainingHoursTotal,

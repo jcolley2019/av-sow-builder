@@ -1,98 +1,178 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
-  DEFAULT_LABOR,
-  DEFAULT_TRAVEL,
-  emptyOther,
-  type LaborCategory,
-  type MiscLine,
-  type OtherLabor,
-  type TravelInputs,
-} from "./laborLibrary";
+  computeProjectEstimate,
+  type DerivedKey,
+  type LaborLineKey,
+  type PhaseSchedule,
+  type ProjectInputs,
+  type RoomEstimate,
+  type RoomItem,
+} from "./labor/engine";
 
-// All editable Labor & Travel state. Held at the App level so switching the
-// top-level view (SOW Builder <-> Labor & Travel) never loses edits.
+// Labor & Travel state (LT.2) — rooms + ProjectInputs + overrides, held at the
+// App level so switching the top-level view never loses edits. All math runs
+// through the LT.1 engine; components never duplicate formulas. In-memory
+// only for now (no persistence).
+
+export type OverrideKey = LaborLineKey | DerivedKey;
+export type PhaseKey = "inHouse" | "onSite";
+
+export interface UIRoom {
+  id: string;
+  name: string;
+  items: RoomItem[];
+  difficulty: number;
+  identicalCount: number;
+}
+
+export type LaborInputs = Omit<ProjectInputs, "overrides">;
+
+function defaultInputs(): LaborInputs {
+  return {
+    numDrawings: 0,
+    isBroadcast: false,
+    inHouse: { crewSize: 0 },
+    onSite: { crewSize: 0 },
+    engTripsToSite: 0,
+    engDaysOnSite: 0,
+    pmTripsToSite: 0,
+    pmDaysOnSite: 0,
+    travelTimeOneWayHrs: 0,
+    projectDistanceInitialMi: 0,
+    projectDistanceDailyMi: 0,
+    trainings: { sessions: 0, hoursEach: 0 },
+    events: { count: 0, daysEach: 0, crewSize: 0 },
+    van: { enabled: false, count: 1 },
+  };
+}
 
 export type LaborModel = ReturnType<typeof useLaborModel>;
 
 export function useLaborModel() {
-  const [library, setLibrary] = useState<Record<LaborCategory, number>>(DEFAULT_LABOR);
-  const [workingHoursPerDay, setWorkingHoursPerDay] = useState(8);
-  const [stagingPerDay, setStagingPerDay] = useState(1.0);
-  const [lineOverrides, setLineOverrides] = useState<Record<string, number>>({});
-  const [roomDaysOverride, setRoomDaysOverride] = useState<Record<number, number | null>>({});
-  const [roomLabor, setRoomLabor] = useState<Record<number, OtherLabor>>({});
-  const [travel, setTravel] = useState<TravelInputs>(DEFAULT_TRAVEL);
+  const roomSeq = useRef(1);
+  const [rooms, setRooms] = useState<UIRoom[]>([
+    { id: "r1", name: "Room 1", items: [], difficulty: 1, identicalCount: 1 },
+  ]);
+  const [selectedRoomId, setSelectedRoomId] = useState<string>("r1");
+  const [inputs, setInputs] = useState<LaborInputs>(defaultInputs);
+  const [overrides, setOverrides] = useState<Partial<Record<OverrideKey, number>>>({});
 
-  const miscSeq = useRef(0);
+  // The whole estimate recomputes on any change — the engine is pure and cheap.
+  const estimate = useMemo(
+    () =>
+      computeProjectEstimate(
+        rooms.map(
+          (r): RoomEstimate => ({
+            name: r.name,
+            items: r.items,
+            difficulty: r.difficulty,
+            identicalCount: r.identicalCount,
+          }),
+        ),
+        { ...inputs, overrides },
+      ),
+    [rooms, inputs, overrides],
+  );
 
-  const setCategoryDefault = useCallback((cat: LaborCategory, hours: number) => {
-    setLibrary((prev) => ({ ...prev, [cat]: hours }));
+  /** Computed hours per room id (same order as `rooms` in the estimate). */
+  const roomHours = useMemo(() => {
+    const map: Record<string, number> = {};
+    rooms.forEach((r, i) => {
+      map[r.id] = estimate.rooms[i]?.hours ?? 0;
+    });
+    return map;
+  }, [rooms, estimate]);
+
+  const selectedRoom = rooms.find((r) => r.id === selectedRoomId) ?? rooms[0] ?? null;
+
+  const addRoom = useCallback(() => {
+    const id = `r${++roomSeq.current}`;
+    setRooms((prev) => [
+      ...prev,
+      { id, name: `Room ${prev.length + 1}`, items: [], difficulty: 1, identicalCount: 1 },
+    ]);
+    setSelectedRoomId(id);
   }, []);
 
-  const setLineHours = useCallback((key: string, hours: number) => {
-    setLineOverrides((prev) => ({ ...prev, [key]: hours }));
+  const renameRoom = useCallback((id: string, name: string) => {
+    setRooms((prev) => prev.map((r) => (r.id === id ? { ...r, name } : r)));
   }, []);
 
-  const setRoomDays = useCallback((ri: number, days: number | null) => {
-    setRoomDaysOverride((prev) => ({ ...prev, [ri]: days }));
+  const deleteRoom = useCallback(
+    (id: string) => {
+      setRooms((prev) => {
+        const next = prev.filter((r) => r.id !== id);
+        if (selectedRoomId === id) setSelectedRoomId(next[0]?.id ?? "");
+        return next;
+      });
+    },
+    [selectedRoomId],
+  );
+
+  const setRoomFactors = useCallback(
+    (id: string, patch: Partial<Pick<UIRoom, "difficulty" | "identicalCount">>) => {
+      setRooms((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    },
+    [],
+  );
+
+  /** Qty <= 0 removes the item; setting qty on an unpicked item adds it. */
+  const setItemQty = useCallback((roomId: string, catalogId: string, qty: number) => {
+    setRooms((prev) =>
+      prev.map((r) => {
+        if (r.id !== roomId) return r;
+        const items = r.items.filter((i) => i.catalogId !== catalogId);
+        if (qty > 0) items.push({ catalogId, qty });
+        return { ...r, items };
+      }),
+    );
   }, []);
 
-  const setRoomOther = useCallback((ri: number, key: keyof OtherLabor, value: number) => {
-    setRoomLabor((prev) => {
-      const base = prev[ri] ?? emptyOther();
-      return { ...prev, [ri]: { ...base, [key]: value } };
+  const updateInputs = useCallback((patch: Partial<LaborInputs>) => {
+    setInputs((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const updatePhase = useCallback((phase: PhaseKey, patch: Partial<PhaseSchedule>) => {
+    setInputs((prev) => ({ ...prev, [phase]: { ...prev[phase], ...patch } }));
+  }, []);
+
+  /** The workbook's "Adjust" column: null clears the override (back to auto). */
+  const setOverride = useCallback((key: OverrideKey, value: number | null) => {
+    setOverrides((prev) => {
+      const next = { ...prev };
+      if (value === null) delete next[key];
+      else next[key] = value;
+      return next;
     });
   }, []);
 
-  const updateTravel = useCallback((patch: Partial<TravelInputs>) => {
-    setTravel((prev) => ({ ...prev, ...patch }));
-  }, []);
-
-  const addMisc = useCallback(() => {
-    setTravel((prev) => ({
-      ...prev,
-      misc: [...prev.misc, { id: `m${++miscSeq.current}`, label: "", amount: 0 }],
-    }));
-  }, []);
-
-  const updateMisc = useCallback((id: string, patch: Partial<MiscLine>) => {
-    setTravel((prev) => ({
-      ...prev,
-      misc: prev.misc.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-    }));
-  }, []);
-
-  const removeMisc = useCallback((id: string) => {
-    setTravel((prev) => ({ ...prev, misc: prev.misc.filter((m) => m.id !== id) }));
-  }, []);
-
-  // Clear per-project edits on a new project; keep the tuned library + day length.
+  // Clear everything on a new project.
   const reset = useCallback(() => {
-    setLineOverrides({});
-    setRoomDaysOverride({});
-    setRoomLabor({});
-    setTravel(DEFAULT_TRAVEL);
+    roomSeq.current = 1;
+    setRooms([{ id: "r1", name: "Room 1", items: [], difficulty: 1, identicalCount: 1 }]);
+    setSelectedRoomId("r1");
+    setInputs(defaultInputs());
+    setOverrides({});
   }, []);
 
   return {
-    library,
-    workingHoursPerDay,
-    stagingPerDay,
-    lineOverrides,
-    roomDaysOverride,
-    roomLabor,
-    travel,
-    setCategoryDefault,
-    setLineHours,
-    setWorkingHoursPerDay,
-    setStagingPerDay,
-    setRoomDays,
-    setRoomOther,
-    updateTravel,
-    addMisc,
-    updateMisc,
-    removeMisc,
+    rooms,
+    selectedRoom,
+    selectedRoomId,
+    inputs,
+    overrides,
+    estimate,
+    roomHours,
+    addRoom,
+    renameRoom,
+    deleteRoom,
+    setRoomFactors,
+    setItemQty,
+    selectRoom: setSelectedRoomId,
+    updateInputs,
+    updatePhase,
+    setOverride,
     reset,
   };
 }

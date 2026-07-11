@@ -1,601 +1,962 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import {
-  Download,
+  Minus,
+  Pencil,
   Plus,
-  Trash2,
   RotateCcw,
-  Wrench,
-  Plane,
-  Settings2,
-  PackageOpen,
-  Loader2,
-  FileText,
+  Search,
+  Trash2,
+  Upload,
   X,
 } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DropZone } from "@/components/DropZone";
-import { RawError } from "@/components/RawError";
-import { Model } from "@/components/Model";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
-import { BOM_ACCEPT } from "@/lib/files";
-import {
-  CATEGORY_LABEL,
-  LABOR_CATEGORIES,
-  OTHER_LABOR_FIELDS,
-  computeLabor,
-  computeTravel,
-} from "@/lib/laborLibrary";
-import { downloadLaborDocx } from "@/lib/docx";
-import type { LaborModel } from "@/lib/useLaborModel";
-import type { ExtractError } from "@/lib/api";
-import type { BomDoc } from "@/lib/types";
+import { CATALOG, type Adjusted, type LaborLineKey } from "@/lib/labor/engine";
+import type { LaborModel, OverrideKey, PhaseKey } from "@/lib/useLaborModel";
 
-const hrs = (n: number) => `${Math.round(n * 100) / 100}`;
-const usd = (n: number) => `$${(Math.round(n * 100) / 100).toFixed(2)}`;
-const toNum = (s: string) => {
-  const n = parseFloat(s);
-  return Number.isFinite(n) ? n : 0;
-};
+// ---------------------------------------------------------------------------
+// Formatting
+// ---------------------------------------------------------------------------
 
-function NumberInput({
+const fmtHrs = (n: number) =>
+  Number.isFinite(n) ? `${Math.round(n * 100) / 100}` : "—";
+const fmtUsd = (n: number) =>
+  Number.isFinite(n)
+    ? n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 })
+    : "—";
+
+// ---------------------------------------------------------------------------
+// Small controls
+// ---------------------------------------------------------------------------
+
+function Stepper({
   value,
   onChange,
-  prefix,
-  step = 0.25,
-  className,
-  ariaLabel,
+  step = 1,
+  min = 0,
+  max,
+  format = (n: number) => String(n),
+  label,
 }: {
   value: number;
   onChange: (n: number) => void;
-  prefix?: string;
   step?: number;
-  className?: string;
-  ariaLabel?: string;
+  min?: number;
+  max?: number;
+  format?: (n: number) => string;
+  label: string;
 }) {
+  const clamp = (n: number) => {
+    let v = Math.max(min, n);
+    if (max !== undefined) v = Math.min(max, v);
+    // Kill float drift from repeated 0.1 steps.
+    return Math.round(v * 100) / 100;
+  };
   return (
-    <div className="relative inline-block">
-      {prefix && (
-        <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-          {prefix}
-        </span>
-      )}
-      <Input
-        type="number"
-        min={0}
-        step={step}
-        value={value}
-        aria-label={ariaLabel}
-        onChange={(e) => onChange(toNum(e.target.value))}
-        className={cn("h-8 w-20 text-right font-mono tabular", prefix && "pl-5", className)}
-      />
+    <div className="inline-flex h-7 items-center rounded-md border border-border bg-raised/60">
+      <button
+        type="button"
+        aria-label={`Decrease ${label}`}
+        className="flex h-full w-6 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30"
+        disabled={value <= min}
+        onClick={() => onChange(clamp(value - step))}
+      >
+        <Minus className="h-3 w-3" />
+      </button>
+      <span className="min-w-8 px-0.5 text-center font-mono text-xs tabular">{format(value)}</span>
+      <button
+        type="button"
+        aria-label={`Increase ${label}`}
+        className="flex h-full w-6 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30"
+        disabled={max !== undefined && value >= max}
+        onClick={() => onChange(clamp(value + step))}
+      >
+        <Plus className="h-3 w-3" />
+      </button>
     </div>
   );
 }
 
-function Field({
+function NumField({
   label,
   value,
   onChange,
-  prefix,
-  step,
+  step = 1,
+  suffix,
 }: {
   label: string;
   value: number;
   onChange: (n: number) => void;
-  prefix?: string;
   step?: number;
+  suffix?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="eyebrow">{label}</span>
-      <NumberInput value={value} onChange={onChange} prefix={prefix} step={step} ariaLabel={label} />
+    <label className="flex items-center justify-between gap-3 py-0.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="flex items-center gap-1.5">
+        <Input
+          type="number"
+          min={0}
+          step={step}
+          value={value}
+          aria-label={label}
+          onChange={(e) => {
+            const n = parseFloat(e.target.value);
+            onChange(Number.isFinite(n) && n >= 0 ? n : 0);
+          }}
+          className="h-7 w-20 text-right font-mono text-xs tabular"
+        />
+        {suffix && <span className="w-7 text-[10px] text-muted-foreground">{suffix}</span>}
+      </span>
     </label>
   );
 }
 
-export function LaborView({
-  bom,
-  labor,
-  company,
-  sourceName,
-  isDropped,
-  busy,
-  error,
-  onFiles,
-  onPaste,
-  onClear,
+function DateField({
+  label,
+  value,
+  onChange,
 }: {
-  bom: BomDoc | null;
-  labor: LaborModel;
-  company: string;
-  sourceName: string | null;
-  isDropped: boolean;
-  busy: boolean;
-  error: ExtractError | null;
-  onFiles: (files: File[]) => void;
-  onPaste: (text: string) => void;
-  onClear: () => void;
+  label: string;
+  value?: string;
+  onChange: (v: string | undefined) => void;
 }) {
-  const [showLibrary, setShowLibrary] = useState(false);
-  const [pasted, setPasted] = useState("");
-
-  const result = useMemo(
-    () =>
-      bom
-        ? computeLabor(
-            bom,
-            labor.library,
-            labor.lineOverrides,
-            labor.workingHoursPerDay,
-            labor.roomDaysOverride,
-            labor.roomLabor,
-            labor.stagingPerDay,
-          )
-        : null,
-    [bom, labor.library, labor.lineOverrides, labor.workingHoursPerDay, labor.roomDaysOverride, labor.roomLabor, labor.stagingPerDay],
+  return (
+    <Input
+      type="date"
+      value={value ?? ""}
+      aria-label={label}
+      onChange={(e) => onChange(e.target.value || undefined)}
+      className="h-7 w-full min-w-0 px-1.5 font-mono text-[11px] tabular [color-scheme:dark]"
+    />
   );
+}
 
-  const travel = useMemo(
-    () => computeTravel(result?.totalInstallDays ?? 0, labor.travel),
-    [result?.totalInstallDays, labor.travel],
-  );
+/**
+ * A derived number with the workbook's "Adjust" affordance: tap the value to
+ * type an override; overridden values show a blue dot, the auto value as
+ * ghost text, and a reset control. Matches the engine's {auto, override,
+ * value} pattern one-to-one.
+ */
+function OverrideValue({
+  adj,
+  onSet,
+  unit = "h",
+  label,
+}: {
+  adj: Adjusted;
+  onSet: (v: number | null) => void;
+  unit?: string;
+  label: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
 
-  const meta = {
-    customer: bom?.customer ?? null,
-    projectNumber: bom?.projectNumber ?? null,
-    projectName: bom?.projectName ?? null,
-    company: company.trim() ? company.trim() : null,
+  const overridden = adj.override !== undefined;
+
+  const commit = () => {
+    setEditing(false);
+    const n = parseFloat(draft);
+    if (!Number.isFinite(n) || n < 0) return; // unparsable -> keep as-was
+    if (n === adj.auto) onSet(null); // typing the auto value clears the override
+    else onSet(n);
   };
 
-  // Equipment-source card — drop/paste a list for a standalone labor check, or
-  // fall back to the SOW Builder's BOM. The SOW side's BomDoc is never touched.
-  const sourceCard = (
-    <Card>
-      <CardHeader className="space-y-1.5">
-        <span className="eyebrow">Equipment source</span>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <PackageOpen className="h-4 w-4 text-muted-foreground" />
-          Labor from an equipment list
-        </CardTitle>
-        <CardDescription>
-          Drop a list for a quick labor check — or it uses the BOM loaded in the SOW Builder.
-          The SOW side is never changed.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {sourceName && (
-          <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-raised/40 px-2.5 py-1.5">
-            <span className="flex min-w-0 items-center gap-2 text-sm">
-              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="truncate">Using: {sourceName}</span>
-            </span>
-            {isDropped && (
-              <button
-                type="button"
-                onClick={onClear}
-                aria-label="Clear dropped list"
-                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        )}
-        {busy ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Extracting the equipment list…
-          </div>
-        ) : (
-          <>
-            <DropZone
-              accept={BOM_ACCEPT}
-              multiple={false}
-              busy={busy}
-              onFiles={onFiles}
-              icon={<PackageOpen className="h-5 w-5" />}
-              title={isDropped ? "Drop to replace the list" : "Drop an equipment list or BOM"}
-              hint=".xlsx · .xlsm · .xls · .csv · .pdf · .png · .jpg · .webp"
-              className="py-5"
-            />
-            <div className="space-y-2">
-              <span className="eyebrow block">Or paste</span>
-              <Textarea
-                value={pasted}
-                onChange={(e) => setPasted(e.target.value)}
-                placeholder={"Qty\tManufacturer\tModel\n…"}
-                className="min-h-[64px] font-mono text-xs"
-              />
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={pasted.trim().length === 0}
-                  onClick={() => {
-                    onPaste(pasted);
-                    setPasted("");
-                  }}
-                >
-                  Use pasted list
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-        {error && <RawError error={error} label="Equipment list failed" />}
-      </CardContent>
-    </Card>
-  );
-
-  if (!bom || bom.locations.length === 0 || !result) {
+  if (editing) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
-        {sourceCard}
-        <Card>
-          <CardContent className="p-8 text-center text-sm text-muted-foreground">
-            Drop an equipment list above (or load a BOM in the SOW Builder) to seed install time.
-          </CardContent>
-        </Card>
-      </div>
+      <Input
+        ref={inputRef}
+        type="number"
+        min={0}
+        step={1}
+        value={draft}
+        aria-label={`Override ${label}`}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        className="h-6 w-20 px-1 text-right font-mono text-xs tabular"
+      />
     );
   }
 
-  function handleDownload() {
-    const num = (meta.projectNumber ?? "").trim().replace(/[^\w.-]+/g, "_");
-    void downloadLaborDocx(
-      { meta, result: result!, travel, travelInputs: labor.travel, workingHoursPerDay: labor.workingHoursPerDay },
-      num ? `${num}_Labor.docx` : "Labor.docx",
-    ).catch((e) => console.error("[Labor] .docx export failed", e));
-  }
-
-  const t = labor.travel;
-
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
-      {sourceCard}
-
-      {/* Summary */}
-      <Card>
-        <CardHeader className="flex-row items-start justify-between space-y-0">
-          <div className="space-y-1.5">
-            <span className="eyebrow">Summary</span>
-            <CardTitle className="text-base">Labor &amp; Travel</CardTitle>
-            <CardDescription>
-              Install time is seeded from the BOM (hours/days only). Travel holds the real expenses.
-            </CardDescription>
-          </div>
-          <Button size="sm" onClick={handleDownload}>
-            <Download /> Download .docx
-          </Button>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <Stat label="Install hours" value={hrs(result.totalInstallHours)} />
-          <Stat label="Install days" value={`${result.totalInstallDays}`} accent />
-          <Stat label="Staging hrs" value={hrs(result.totalStagingHours)} />
-          <Stat label="Other labor hrs" value={hrs(sumOther(result.otherTotals))} />
-          <Stat label="Travel subtotal" value={usd(travel.subtotal)} />
-          <div className="col-span-2 sm:col-span-4">
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              {OTHER_LABOR_FIELDS.map((f) => (
-                <span key={f.key}>
-                  {f.label}: <span className="font-mono tabular text-foreground">{hrs(result.otherTotals[f.key])}</span> h
-                </span>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Settings + install-time library */}
-      <Card>
-        <CardHeader className="space-y-1.5">
-          <span className="eyebrow">Settings</span>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Settings2 className="h-4 w-4 text-muted-foreground" />
-            Install-time library
-          </CardTitle>
-          <CardDescription>
-            Starting per-device hours you tune (not official AVIXA figures). Editing a category
-            updates every line of that type that has no per-line override.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-end gap-4">
-            <Field
-              label="Working hours / day"
-              value={labor.workingHoursPerDay}
-              step={0.5}
-              onChange={(n) => labor.setWorkingHoursPerDay(n || 8)}
-            />
-            <Field
-              label="Staging & clean-up (hrs / day)"
-              value={labor.stagingPerDay}
-              step={0.25}
-              onChange={(n) => labor.setStagingPerDay(n)}
-            />
-            <Button variant="outline" size="sm" onClick={() => setShowLibrary((v) => !v)}>
-              {showLibrary ? "Hide" : "Edit"} category defaults
-            </Button>
-          </div>
-          {showLibrary && (
-            <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-              {LABOR_CATEGORIES.map((c) => (
-                <div key={c.key} className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-muted-foreground">{c.label}</span>
-                  <NumberInput
-                    value={labor.library[c.key]}
-                    onChange={(n) => labor.setCategoryDefault(c.key, n)}
-                    ariaLabel={`${c.label} default hours`}
-                    className="w-16"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Per-room install + other labor */}
-      {result.rooms.map((room) => (
-        <Card key={room.ri}>
-          <CardHeader className="flex-row items-start justify-between space-y-0">
-            <div className="space-y-1.5">
-              <span className="eyebrow">Install</span>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Wrench className="h-4 w-4 text-muted-foreground" />
-                {room.name}
-              </CardTitle>
-              <CardDescription>
-                {hrs(room.installHours)} install hours · {room.installDays} install day(s)
-                {room.installDays !== room.computedDays ? ` (auto ${room.computedDays})` : ""}
-                {room.stagingHours > 0 ? ` · staging/clean-up ${hrs(room.stagingHours)} hrs` : ""}
-              </CardDescription>
-            </div>
-            <div className="flex items-end gap-1.5">
-              <label className="flex flex-col gap-1">
-                <span className="eyebrow">Install days</span>
-                <NumberInput
-                  value={room.installDays}
-                  step={1}
-                  onChange={(n) => labor.setRoomDays(room.ri, n)}
-                  ariaLabel="Install days override"
-                  className="w-16"
-                />
-              </label>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                title="Reset install days to auto"
-                onClick={() => labor.setRoomDays(room.ri, null)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <RotateCcw />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Device</TableHead>
-                  <TableHead className="w-44">Category</TableHead>
-                  <TableHead className="w-12 text-center">Qty</TableHead>
-                  <TableHead className="w-24 text-right">Hrs / unit</TableHead>
-                  <TableHead className="w-16 text-right">Line hrs</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {room.lines.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-3 text-center text-xs text-muted-foreground">
-                      No line items.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  room.lines.map((line) => (
-                    <TableRow key={line.key}>
-                      <TableCell className="px-2 py-1 text-sm">
-                        {line.manufacturer}{" "}
-                        <Model className="text-foreground">{line.model}</Model>
-                      </TableCell>
-                      <TableCell className="px-2 py-1 text-xs text-muted-foreground">
-                        {CATEGORY_LABEL[line.category]}
-                      </TableCell>
-                      <TableCell className="px-2 py-1 text-center font-mono tabular text-sm">
-                        {line.qty}
-                      </TableCell>
-                      <TableCell className="px-2 py-1 text-right">
-                        <NumberInput
-                          value={line.perUnit}
-                          onChange={(n) => labor.setLineHours(line.key, n)}
-                          ariaLabel={`Hours per unit for ${line.model}`}
-                          className="w-16"
-                        />
-                      </TableCell>
-                      <TableCell className="px-2 py-1 text-right font-mono tabular text-sm">
-                        {hrs(line.lineHours)}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-
-            <div>
-              <span className="eyebrow mb-2 block">Other labor — hours</span>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-                {OTHER_LABOR_FIELDS.map((f) => (
-                  <Field
-                    key={f.key}
-                    label={f.label}
-                    value={room.other[f.key]}
-                    step={1}
-                    onChange={(n) => labor.setRoomOther(room.ri, f.key, n)}
-                  />
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-
-      {/* Travel */}
-      <Card>
-        <CardHeader className="space-y-1.5">
-          <span className="eyebrow text-primary">Travel</span>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Plane className="h-4 w-4 text-muted-foreground" />
-            Travel &amp; out-of-pocket
-          </CardTitle>
-          <CardDescription>
-            Driven by {result.totalInstallDays} install day(s). Day counts auto-derive and stay editable.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Field label="Technicians" value={t.techs} step={1} onChange={(n) => labor.updateTravel({ techs: n })} />
-            <Field label="Travel days each way" value={t.eachWay} step={1} onChange={(n) => labor.updateTravel({ eachWay: n })} />
-            <Field label="Hotel rooms" value={t.hotelRooms} step={1} onChange={(n) => labor.updateTravel({ hotelRooms: n })} />
-            <Field label="Rental cars" value={t.cars} step={1} onChange={(n) => labor.updateTravel({ cars: n })} />
-          </div>
-
-          <div>
-            <span className="eyebrow mb-2 block">Day counts (editable)</span>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <Field label="Days on site" value={travel.daysOnSite} step={1} onChange={(n) => labor.updateTravel({ daysOnSiteOv: n })} />
-              <Field label="Travel days" value={travel.travelDays} step={1} onChange={(n) => labor.updateTravel({ travelDaysOv: n })} />
-              <Field label="Hotel nights" value={travel.hotelNights} step={1} onChange={(n) => labor.updateTravel({ hotelNightsOv: n })} />
-              <Field label="Rental days" value={travel.rentalDays} step={1} onChange={(n) => labor.updateTravel({ rentalDaysOv: n })} />
-              <Field label="Per-diem days" value={travel.perDiemDays} step={1} onChange={(n) => labor.updateTravel({ perDiemDaysOv: n })} />
-            </div>
-          </div>
-
-          <div>
-            <span className="eyebrow mb-2 block">Expenses</span>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item</TableHead>
-                  <TableHead className="w-28 text-right">Rate</TableHead>
-                  <TableHead className="w-44 text-center">Basis</TableHead>
-                  <TableHead className="w-24 text-right">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <ExpenseRow
-                  item="Airfare (round-trip)"
-                  rate={<NumberInput prefix="$" step={1} value={t.airfareRT} onChange={(n) => labor.updateTravel({ airfareRT: n })} ariaLabel="Airfare round-trip per tech" />}
-                  basis={`× ${t.techs} tech(s)`}
-                  amount={travel.airfare}
-                />
-                <ExpenseRow
-                  item="Hotel"
-                  rate={<NumberInput prefix="$" step={1} value={t.hotelNightly} onChange={(n) => labor.updateTravel({ hotelNightly: n })} ariaLabel="Hotel nightly rate" />}
-                  basis={`× ${travel.hotelNights} night(s) × ${t.hotelRooms} room(s)`}
-                  amount={travel.hotel}
-                />
-                <ExpenseRow
-                  item="Rental car"
-                  rate={<NumberInput prefix="$" step={1} value={t.rentalDaily} onChange={(n) => labor.updateTravel({ rentalDaily: n })} ariaLabel="Rental daily rate" />}
-                  basis={`× ${travel.rentalDays} day(s) × ${t.cars} car(s)`}
-                  amount={travel.rental}
-                />
-                <ExpenseRow
-                  item="Per diem"
-                  rate={<NumberInput prefix="$" step={1} value={t.perDiemDaily} onChange={(n) => labor.updateTravel({ perDiemDaily: n })} ariaLabel="Per diem daily" />}
-                  basis={`× ${travel.perDiemDays} day(s) × ${t.techs} tech(s)`}
-                  amount={travel.perDiem}
-                />
-                {t.misc.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell className="px-2 py-1" colSpan={1}>
-                      <Input
-                        value={m.label}
-                        placeholder="Misc (parking, small parts…)"
-                        className="h-8"
-                        onChange={(e) => labor.updateMisc(m.id, { label: e.target.value })}
-                      />
-                    </TableCell>
-                    <TableCell className="px-2 py-1 text-right" colSpan={2}>
-                      <span className="text-xs text-muted-foreground">free-form line item</span>
-                    </TableCell>
-                    <TableCell className="px-2 py-1 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <NumberInput prefix="$" step={1} value={m.amount} onChange={(n) => labor.updateMisc(m.id, { amount: n })} ariaLabel="Misc amount" />
-                        <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={() => labor.removeMisc(m.id)}>
-                          <Trash2 />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <div className="mt-2 flex items-center justify-between">
-              <Button variant="ghost" size="sm" onClick={labor.addMisc}>
-                <Plus /> Add misc item
-              </Button>
-              <div className="text-sm">
-                <span className="text-muted-foreground">Travel subtotal: </span>
-                <span className="font-mono tabular font-semibold text-foreground">{usd(travel.subtotal)}</span>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <span className="inline-flex items-center gap-1.5">
+      {overridden && (
+        <>
+          <span className="font-mono text-[10px] tabular text-muted-foreground/60 line-through">
+            {fmtHrs(adj.auto)}
+          </span>
+          <button
+            type="button"
+            aria-label={`Reset ${label} to auto`}
+            title={`Reset to auto (${fmtHrs(adj.auto)})`}
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => onSet(null)}
+          >
+            <RotateCcw className="h-3 w-3" />
+          </button>
+        </>
+      )}
+      <button
+        type="button"
+        aria-label={`Edit ${label} (currently ${fmtHrs(adj.value)} ${unit})`}
+        title="Tap to override"
+        className={cn(
+          "group inline-flex items-center gap-1 rounded px-1 py-0.5 font-mono text-xs tabular",
+          "hover:bg-accent",
+          overridden ? "text-primary" : "text-foreground",
+        )}
+        onClick={() => {
+          setDraft(String(Number.isFinite(adj.value) ? adj.value : 0));
+          setEditing(true);
+        }}
+      >
+        {overridden && <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />}
+        {fmtHrs(adj.value)}
+        <span className="text-[10px] text-muted-foreground">{unit}</span>
+        <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+      </button>
+    </span>
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+// ---------------------------------------------------------------------------
+// Left rail — rooms
+// ---------------------------------------------------------------------------
+
+function RoomsRail({ labor }: { labor: LaborModel }) {
   return (
-    <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
-      <div className="eyebrow">{label}</div>
-      <div className={cn("mt-1 font-mono text-xl font-semibold tabular", accent ? "text-primary" : "text-foreground")}>
-        {value}
+    <div className="space-y-2">
+      {labor.rooms.map((room) => {
+        const selected = room.id === labor.selectedRoomId;
+        const hours = labor.roomHours[room.id] ?? 0;
+        return (
+          <div
+            key={room.id}
+            className={cn(
+              "rounded-lg border bg-panel transition-colors",
+              selected ? "border-primary/60 shadow-[0_0_0_1px_hsl(var(--primary)/0.25)]" : "border-border hover:border-raised",
+            )}
+          >
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+              onClick={() => labor.selectRoom(room.id)}
+            >
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{room.name}</span>
+              <span
+                className="shrink-0 rounded border border-border bg-raised/70 px-1.5 py-0.5 font-mono text-[11px] tabular text-muted-foreground"
+                title="Computed hours for this room (qty × unit hrs × difficulty × identical rooms)"
+              >
+                {fmtHrs(hours)} h
+              </span>
+            </button>
+            {selected && (
+              <div className="space-y-2 border-t border-border/60 px-3 py-2.5">
+                <Input
+                  value={room.name}
+                  aria-label="Room name"
+                  onChange={(e) => labor.renameRoom(room.id, e.target.value)}
+                  className="h-7 text-sm"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Difficulty</span>
+                  <Stepper
+                    label="difficulty"
+                    value={room.difficulty}
+                    min={0.5}
+                    max={2}
+                    step={0.1}
+                    format={(n) => `×${n.toFixed(1)}`}
+                    onChange={(n) => labor.setRoomFactors(room.id, { difficulty: n })}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Identical rooms</span>
+                  <Stepper
+                    label="identical rooms"
+                    value={room.identicalCount}
+                    min={1}
+                    step={1}
+                    format={(n) => `×${n}`}
+                    onChange={(n) => labor.setRoomFactors(room.id, { identicalCount: n })}
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-full justify-start px-1.5 text-destructive hover:text-destructive"
+                  onClick={() => labor.deleteRoom(room.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Delete room
+                </Button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <Button variant="outline" size="sm" className="w-full" onClick={labor.addRoom}>
+        <Plus className="h-4 w-4" /> Add room
+      </Button>
+
+      {/* BOM dropzone — visually present, wired in LT.3. */}
+      <div
+        aria-disabled
+        title="Drop a BOM to auto-map items to the catalog — coming in LT.3"
+        className="cursor-not-allowed rounded-lg border border-dashed border-border/70 px-3 py-5 text-center opacity-50"
+      >
+        <Upload className="mx-auto h-4 w-4 text-muted-foreground" />
+        <p className="mt-1.5 text-xs text-muted-foreground">Drop a BOM to auto-map items</p>
+        <p className="eyebrow mt-1">Coming in LT.3</p>
       </div>
     </div>
   );
 }
 
-function ExpenseRow({
-  item,
-  rate,
-  basis,
-  amount,
-}: {
-  item: string;
-  rate: ReactNode;
-  basis: string;
-  amount: number;
-}) {
+// ---------------------------------------------------------------------------
+// Center — catalog picker
+// ---------------------------------------------------------------------------
+
+const SECTIONS = [...new Set(CATALOG.map((c) => c.section))];
+
+function CatalogPicker({ labor }: { labor: LaborModel }) {
+  const room = labor.selectedRoom;
+  const [query, setQuery] = useState("");
+  const [section, setSection] = useState<string | null>(null);
+  const [browsing, setBrowsing] = useState(false);
+
+  const browse = browsing || query.trim() !== "" || section !== null;
+
+  const qty = useMemo(() => {
+    const m = new Map<string, number>();
+    room?.items.forEach((i) => m.set(i.catalogId, i.qty));
+    return m;
+  }, [room]);
+
+  const visible = useMemo(() => {
+    if (!browse) {
+      return CATALOG.filter((c) => qty.has(c.id));
+    }
+    const q = query.trim().toLowerCase();
+    return CATALOG.filter(
+      (c) =>
+        (section === null || c.section === section) &&
+        (q === "" || c.name.toLowerCase().includes(q) || c.id.includes(q)),
+    );
+  }, [browse, query, section, qty]);
+
+  if (!room) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+          Add a room to start picking equipment.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const stopBrowsing = () => {
+    setBrowsing(false);
+    setQuery("");
+    setSection(null);
+  };
+
   return (
-    <TableRow>
-      <TableCell className="px-2 py-1 text-sm">{item}</TableCell>
-      <TableCell className="px-2 py-1 text-right">{rate}</TableCell>
-      <TableCell className="px-2 py-1 text-center text-xs text-muted-foreground">{basis}</TableCell>
-      <TableCell className="px-2 py-1 text-right font-mono tabular text-sm">{usd(amount)}</TableCell>
-    </TableRow>
+    <Card className="flex min-h-0 flex-col lg:flex-1">
+      <CardContent className="flex min-h-0 flex-col gap-3 p-4 lg:flex-1">
+        {/* Search + mode switch */}
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              placeholder="Search the catalog…"
+              aria-label="Search catalog"
+              onChange={(e) => setQuery(e.target.value)}
+              className="h-8 pl-8"
+            />
+          </div>
+          {browse ? (
+            <Button variant="ghost" size="sm" onClick={stopBrowsing}>
+              <X className="h-3.5 w-3.5" /> Done
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setBrowsing(true)}>
+              <Plus className="h-3.5 w-3.5" /> Add items
+            </Button>
+          )}
+        </div>
+
+        {/* Section chips (browse mode) */}
+        {browse && (
+          <div className="flex shrink-0 flex-wrap gap-1">
+            <SectionChip active={section === null} onClick={() => setSection(null)}>
+              All
+            </SectionChip>
+            {SECTIONS.map((s) => (
+              <SectionChip key={s} active={section === s} onClick={() => setSection(s)}>
+                {s}
+              </SectionChip>
+            ))}
+          </div>
+        )}
+
+        {/* Item list */}
+        <div className="min-h-0 lg:flex-1 lg:overflow-y-auto">
+          {visible.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              {browse ? (
+                "Nothing matches — try another search or section."
+              ) : (
+                <>
+                  No items in {room.name} yet.
+                  <div className="mt-3">
+                    <Button variant="outline" size="sm" onClick={() => setBrowsing(true)}>
+                      <Plus className="h-3.5 w-3.5" /> Add items
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {visible.map((item) => {
+                const q = qty.get(item.id) ?? 0;
+                return (
+                  <li key={item.id} className="flex items-center gap-3 py-1.5">
+                    <div className="min-w-0 flex-1">
+                      <p className={cn("truncate text-sm", q === 0 && "text-muted-foreground")}>
+                        {item.name}
+                      </p>
+                      <p className="truncate font-mono text-[10px] text-muted-foreground/70">
+                        {item.id} · {item.section}
+                        {item.note ? ` · ${item.note}` : ""}
+                      </p>
+                    </div>
+                    <span className="w-14 shrink-0 text-right font-mono text-xs tabular text-muted-foreground">
+                      {fmtHrs(item.unitHrs)} h
+                    </span>
+                    <div className="shrink-0">
+                      <Stepper
+                        label={`${item.name} quantity`}
+                        value={q}
+                        min={0}
+                        step={1}
+                        onChange={(n) => labor.setItemQty(room.id, item.id, n)}
+                      />
+                    </div>
+                    <span className="w-14 shrink-0 text-right font-mono text-xs tabular">
+                      {q > 0 ? `${fmtHrs(q * item.unitHrs)} h` : ""}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
-function sumOther(o: { [k: string]: number }): number {
-  return Object.values(o).reduce((s, n) => s + n, 0);
+function SectionChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+        active
+          ? "border-primary/60 bg-primary/15 text-foreground"
+          : "border-border text-muted-foreground hover:border-raised hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Right rail — inputs + live estimate readout
+// ---------------------------------------------------------------------------
+
+const PHASES: { key: PhaseKey; label: string }[] = [
+  { key: "inHouse", label: "In-House Build" },
+  { key: "onSite", label: "On-Site Build" },
+];
+
+/** Line groups mirror the workbook's Project Details sections. */
+const LINE_GROUPS: { title: string; keys: LaborLineKey[] }[] = [
+  {
+    title: "PM & Engineering",
+    keys: ["engineering", "engineeringPrem", "cad", "cadPrem", "itProg", "engTravel", "pm", "pc", "pmTravel"],
+  },
+  {
+    title: "In-House Install",
+    keys: [
+      "progControl", "progControlPrem", "progDsp", "progDspPrem",
+      "leadInHouse", "leadInHousePrem", "installInHouse", "installInHousePrem",
+      "feInHouseCommissioning", "feInHouseCommissioningPrem",
+    ],
+  },
+  { title: "Pre-Install Site Visit", keys: ["leadSiteVisit", "leadSiteVisitTravel"] },
+  {
+    title: "On-Site Install",
+    keys: [
+      "leadOnSite", "leadOnSitePrem", "installOnSite", "installOnSitePrem",
+      "leadOnSiteTravel", "installOnSiteTravel",
+    ],
+  },
+  { title: "Field Engineer", keys: ["feOnSiteCommissioning", "feOnSiteCommissioningPrem", "feOnSiteTravel"] },
+  { title: "Training", keys: ["training", "trainingPrem", "trainingTravel"] },
+  { title: "Event Support", keys: ["eventSupport", "eventSupportPrem", "eventSupportTravel"] },
+];
+
+/** Std vs premium capacity bar: blue = standard hours, amber = premium spill. */
+function CapacityBar({ total, avail }: { total: number; avail: number }) {
+  if (!Number.isFinite(total) || total <= 0) {
+    return <div className="h-1 rounded-full bg-raised" />;
+  }
+  const prem = Math.max(0, total - avail);
+  const std = total - prem;
+  const scale = Math.max(total, avail);
+  return (
+    <div className="flex h-1 gap-px overflow-hidden rounded-full bg-raised">
+      {std > 0 && (
+        <div className="bg-primary" style={{ width: `${(std / scale) * 100}%` }} />
+      )}
+      {prem > 0 && (
+        <div className="bg-amber-500" style={{ width: `${(prem / scale) * 100}%` }} />
+      )}
+    </div>
+  );
+}
+
+function SummaryRail({ labor }: { labor: LaborModel }) {
+  const { inputs, estimate } = labor;
+  const d = estimate.derived;
+  const lineMap = useMemo(() => new Map(estimate.lines.map((l) => [l.key, l])), [estimate]);
+  const setOv = (key: OverrideKey) => (v: number | null) => labor.setOverride(key, v);
+
+  const splits = [
+    { label: "In-House", total: d.inHouseInstallTotalHrs, avail: d.inHouseStdHrsAvail, prem: d.inHousePremHrsReq },
+    { label: "On-Site", total: d.onSiteInstallTotalHrs, avail: d.onSiteStdHrsAvail, prem: d.onSitePremHrsReq },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* ---- Project inputs ---- */}
+      <Card>
+        <CardContent className="p-4 pt-3">
+          <Accordion type="multiple" defaultValue={["project", "schedule"]}>
+            <AccordionItem value="project">
+              <AccordionTrigger className="py-2 text-xs hover:no-underline">
+                <span className="eyebrow">Project</span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-1 pb-3">
+                <NumField
+                  label="# of drawings"
+                  value={inputs.numDrawings}
+                  onChange={(n) => labor.updateInputs({ numDrawings: Math.round(n) })}
+                />
+                <div className="flex items-center justify-between gap-3 py-0.5">
+                  <span className="text-xs text-muted-foreground">Project type</span>
+                  <div className="inline-flex rounded-md border border-border p-0.5">
+                    {([false, true] as const).map((b) => (
+                      <button
+                        key={String(b)}
+                        type="button"
+                        onClick={() => labor.updateInputs({ isBroadcast: b })}
+                        className={cn(
+                          "rounded px-2 py-0.5 text-[11px] transition-colors",
+                          inputs.isBroadcast === b
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {b ? "Broadcast" : "AV"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="schedule">
+              <AccordionTrigger className="py-2 text-xs hover:no-underline">
+                <span className="eyebrow">Schedule & Crews</span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-2.5 pb-3">
+                {PHASES.map(({ key, label }) => {
+                  const phase = inputs[key];
+                  return (
+                    <div key={key} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">{label}</span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-muted-foreground">crew</span>
+                          <Stepper
+                            label={`${label} crew size`}
+                            value={phase.crewSize}
+                            min={0}
+                            step={1}
+                            onChange={(n) => labor.updatePhase(key, { crewSize: n })}
+                          />
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <DateField
+                          label={`${label} start`}
+                          value={phase.start}
+                          onChange={(v) => labor.updatePhase(key, { start: v })}
+                        />
+                        <DateField
+                          label={`${label} end`}
+                          value={phase.end}
+                          onChange={(v) => labor.updatePhase(key, { end: v })}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="travel">
+              <AccordionTrigger className="py-2 text-xs hover:no-underline">
+                <span className="eyebrow">Travel & Site Visits</span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-1 pb-3">
+                <NumField
+                  label="Travel time, one-way"
+                  value={inputs.travelTimeOneWayHrs}
+                  step={0.25}
+                  suffix="hrs"
+                  onChange={(n) => labor.updateInputs({ travelTimeOneWayHrs: n })}
+                />
+                <NumField
+                  label="Distance, initial one-way"
+                  value={inputs.projectDistanceInitialMi}
+                  suffix="mi"
+                  onChange={(n) => labor.updateInputs({ projectDistanceInitialMi: n })}
+                />
+                <NumField
+                  label="Distance, daily one-way"
+                  value={inputs.projectDistanceDailyMi}
+                  suffix="mi"
+                  onChange={(n) => labor.updateInputs({ projectDistanceDailyMi: n })}
+                />
+                <div className="flex items-center justify-between gap-3 py-0.5">
+                  <span className="text-xs text-muted-foreground">Company van</span>
+                  <span className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={inputs.van?.enabled ?? false}
+                      aria-label="Use company van"
+                      onClick={() =>
+                        labor.updateInputs({
+                          van: { enabled: !(inputs.van?.enabled ?? false), count: inputs.van?.count ?? 1 },
+                        })
+                      }
+                      className={cn(
+                        "relative h-5 w-9 rounded-full transition-colors",
+                        inputs.van?.enabled ? "bg-primary" : "bg-raised",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "absolute top-0.5 h-4 w-4 rounded-full bg-foreground transition-all",
+                          inputs.van?.enabled ? "left-[18px]" : "left-0.5",
+                        )}
+                      />
+                    </button>
+                    {inputs.van?.enabled && (
+                      <Stepper
+                        label="number of vans"
+                        value={inputs.van.count}
+                        min={1}
+                        step={1}
+                        format={(n) => `×${n}`}
+                        onChange={(n) => labor.updateInputs({ van: { enabled: true, count: n } })}
+                      />
+                    )}
+                  </span>
+                </div>
+                <NumField
+                  label="Engineering trips to site"
+                  value={inputs.engTripsToSite}
+                  onChange={(n) => labor.updateInputs({ engTripsToSite: Math.round(n) })}
+                />
+                <NumField
+                  label="Engineering days on-site"
+                  value={inputs.engDaysOnSite ?? 0}
+                  onChange={(n) => labor.updateInputs({ engDaysOnSite: n })}
+                />
+                <NumField
+                  label="PM trips to site"
+                  value={inputs.pmTripsToSite}
+                  onChange={(n) => labor.updateInputs({ pmTripsToSite: Math.round(n) })}
+                />
+                <NumField
+                  label="PM days on-site"
+                  value={inputs.pmDaysOnSite ?? 0}
+                  onChange={(n) => labor.updateInputs({ pmDaysOnSite: n })}
+                />
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="training" className="border-b-0">
+              <AccordionTrigger className="py-2 text-xs hover:no-underline">
+                <span className="eyebrow">Training & Events</span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-1 pb-1">
+                <NumField
+                  label="Training sessions"
+                  value={inputs.trainings.sessions}
+                  onChange={(n) =>
+                    labor.updateInputs({ trainings: { ...inputs.trainings, sessions: Math.round(n) } })
+                  }
+                />
+                <NumField
+                  label="Hours per session"
+                  value={inputs.trainings.hoursEach}
+                  step={0.5}
+                  suffix="hrs"
+                  onChange={(n) => labor.updateInputs({ trainings: { ...inputs.trainings, hoursEach: n } })}
+                />
+                <NumField
+                  label="Event supports"
+                  value={inputs.events.count}
+                  onChange={(n) => labor.updateInputs({ events: { ...inputs.events, count: Math.round(n) } })}
+                />
+                <NumField
+                  label="Days per event"
+                  value={inputs.events.daysEach}
+                  onChange={(n) => labor.updateInputs({ events: { ...inputs.events, daysEach: n } })}
+                />
+                <NumField
+                  label="Event crew size"
+                  value={inputs.events.crewSize}
+                  onChange={(n) => labor.updateInputs({ events: { ...inputs.events, crewSize: Math.round(n) } })}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </CardContent>
+      </Card>
+
+      {/* ---- Derived estimate readout ---- */}
+      <Card>
+        <CardContent className="space-y-4 p-4">
+          {/* Install split */}
+          <div>
+            <div className="mb-2 flex items-baseline justify-between">
+              <span className="eyebrow">Install Split</span>
+              <span className="font-mono text-[11px] tabular text-muted-foreground">
+                {fmtHrs(estimate.laborSheetTotalHours)} h on labor sheet
+              </span>
+            </div>
+            <div className="space-y-2.5">
+              {splits.map((s) => (
+                <div key={s.label}>
+                  <div className="mb-1 flex items-baseline justify-between text-xs">
+                    <span className="text-muted-foreground">{s.label}</span>
+                    <span className="font-mono tabular">
+                      {fmtHrs(s.total)} h
+                      <span className="text-muted-foreground"> / {fmtHrs(s.avail)} h std</span>
+                      {s.prem > 0 && (
+                        <span className="text-amber-500"> · {fmtHrs(s.prem)} h prem</span>
+                      )}
+                    </span>
+                  </div>
+                  <CapacityBar total={s.total} avail={s.avail} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Site logistics (derived, overridable) */}
+          <div className="border-t border-border/60 pt-3">
+            <span className="eyebrow">Site Logistics</span>
+            <div className="mt-1.5 space-y-0.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">
+                  Project is {d.isProjectLocal ? "local" : "remote"} · lead site visits
+                </span>
+                <OverrideValue
+                  adj={d.fieldLeadSiteVisitTrips}
+                  onSet={setOv("fieldLeadSiteVisitTrips")}
+                  unit="trips"
+                  label="lead site visit trips"
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Lead site visit days</span>
+                <OverrideValue
+                  adj={d.fieldLeadSiteVisitDays}
+                  onSet={setOv("fieldLeadSiteVisitDays")}
+                  unit="days"
+                  label="lead site visit days"
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Van mileage</span>
+                <OverrideValue
+                  adj={d.vanMiles}
+                  onSet={setOv("onSiteVanMiles")}
+                  unit="mi"
+                  label="van mileage"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Labor lines by workbook section */}
+          {LINE_GROUPS.map((group) => {
+            const lines = group.keys
+              .map((k) => lineMap.get(k))
+              .filter((l): l is NonNullable<typeof l> => l !== undefined);
+            const subtotal = lines.reduce((s, l) => s + l.hours.value, 0);
+            return (
+              <div key={group.title} className="border-t border-border/60 pt-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="eyebrow">{group.title}</span>
+                  <span className="font-mono text-[11px] tabular text-muted-foreground">
+                    {fmtHrs(subtotal)} h
+                  </span>
+                </div>
+                <div className="mt-1.5 space-y-0.5">
+                  {lines.map((l) => {
+                    const zero = l.hours.value === 0 && l.hours.override === undefined;
+                    return (
+                      <div
+                        key={l.key}
+                        className={cn(
+                          "flex items-center justify-between gap-2 text-xs",
+                          zero && "opacity-40",
+                        )}
+                      >
+                        <span className="min-w-0 truncate text-muted-foreground">{l.description}</span>
+                        <OverrideValue adj={l.hours} onSet={setOv(l.key)} label={l.description} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Expenses */}
+          <div className="border-t border-border/60 pt-3">
+            <span className="eyebrow">Expenses</span>
+            <div className="mt-1.5 space-y-0.5">
+              {estimate.expenses.map((e) => (
+                <div key={e.key} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{e.description}</span>
+                  <span className="font-mono tabular">{fmtUsd(e.extCost)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Totals */}
+          <div className="rounded-lg border border-border bg-raised/50 p-3">
+            <div className="flex items-baseline justify-between">
+              <span className="eyebrow">Labor Hours</span>
+              <span className="font-mono text-lg font-semibold tabular">
+                {fmtHrs(estimate.totals.laborHours)} h
+              </span>
+            </div>
+            <div className="mt-2 space-y-1 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Labor cost</span>
+                <span className="font-mono tabular">{fmtUsd(estimate.totals.laborCost)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Expenses</span>
+                <span className="font-mono tabular">{fmtUsd(estimate.totals.expenseCost)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-border/60 pt-1 font-medium">
+                <span>Total cost</span>
+                <span className="font-mono tabular text-primary">
+                  {fmtUsd(estimate.totals.grandTotal)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The view — three zones: rooms | catalog | live summary
+// ---------------------------------------------------------------------------
+
+export function LaborView({ labor }: { labor: LaborModel }) {
+  return (
+    <div className="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 sm:px-6 lg:h-full lg:grid-cols-[280px_minmax(0,1fr)_400px] lg:grid-rows-1">
+      {/* LEFT — rooms */}
+      <section className="flex min-w-0 flex-col lg:min-h-0">
+        <div className="flex items-center justify-between pt-6 lg:shrink-0">
+          <span className="eyebrow">Rooms & Systems</span>
+          <span className="eyebrow">{labor.rooms.length}</span>
+        </div>
+        <div className="pb-6 pt-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+          <RoomsRail labor={labor} />
+        </div>
+      </section>
+
+      {/* CENTER — catalog picker for the selected room */}
+      <section className="flex min-w-0 flex-col lg:min-h-0">
+        <div className="flex items-center justify-between pt-6 lg:shrink-0">
+          <span className="eyebrow">
+            Catalog{labor.selectedRoom ? ` · ${labor.selectedRoom.name}` : ""}
+          </span>
+          <span className="eyebrow">{labor.selectedRoom?.items.length ?? 0} picked</span>
+        </div>
+        <div className="pb-6 pt-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+          <CatalogPicker labor={labor} />
+        </div>
+      </section>
+
+      {/* RIGHT — live summary, always visible */}
+      <section className="flex min-w-0 flex-col lg:min-h-0">
+        <div className="flex items-center justify-between pt-6 lg:shrink-0">
+          <span className="eyebrow">Estimate</span>
+          <span className="eyebrow">Live</span>
+        </div>
+        <div className="pb-6 pt-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+          <SummaryRail labor={labor} />
+        </div>
+      </section>
+    </div>
+  );
 }

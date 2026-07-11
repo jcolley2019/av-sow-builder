@@ -162,56 +162,8 @@ function App() {
     }
   }
 
-  // Standalone Labor & Travel equipment source — independent of the SOW BomDoc.
-  // If set, the labor page uses it; otherwise it falls back to editor.doc.
-  const [laborBom, setLaborBom] = useState<BomDoc | null>(null);
-  const [laborBomName, setLaborBomName] = useState<string | null>(null);
-  const [laborBomBusy, setLaborBomBusy] = useState(false);
-  const [laborBomError, setLaborBomError] = useState<ExtractError | null>(null);
-
-  async function ingestLaborBom(req: BomRequest, name: string) {
-    setLaborBomError(null);
-    setLaborBomBusy(true);
-    try {
-      const data = await extractBom(req);
-      if (isError(data)) {
-        setLaborBomError(data);
-        return;
-      }
-      if (!data.locations || data.locations.length === 0) {
-        setLaborBomError({
-          error: "No equipment was extracted from that list. Check the file or text.",
-          raw: JSON.stringify(data, null, 2),
-        });
-        return;
-      }
-      setLaborBom({ ...data, removals: [] });
-      setLaborBomName(name);
-    } catch (e) {
-      setLaborBomError({ error: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setLaborBomBusy(false);
-    }
-  }
-  async function handleLaborFiles(files: File[]) {
-    const file = files[0];
-    if (!file) return;
-    try {
-      await ingestLaborBom(await bomRequestFromFile(file), file.name);
-    } catch (e) {
-      setLaborBomError({ error: e instanceof Error ? e.message : String(e) });
-    }
-  }
-  const handleLaborPaste = (text: string) => {
-    if (text.trim()) void ingestLaborBom({ kind: "text", text }, "Pasted list");
-  };
-  function clearLaborBom() {
-    setLaborBom(null);
-    setLaborBomName(null);
-    setLaborBomError(null);
-    setLaborBomBusy(false);
-  }
-
+  // NOTE (LT.2): the standalone Labor & Travel BOM ingest lane was removed with
+  // the engine rebuild; BOM -> catalog auto-mapping returns in LT.3.
 
   const [bomBusy, setBomBusy] = useState(false);
   const [bomError, setBomError] = useState<ExtractError | null>(null);
@@ -648,7 +600,6 @@ function App() {
     setDepFlags(null);
     setDepError(null);
     labor.reset();
-    clearLaborBom();
     setCompany(loadCompanyDefault()); // keep the saved company default
   }
 
@@ -735,25 +686,8 @@ function App() {
       </header>
 
       {view === "labor" ? (
-        <main className="flex-1 lg:min-h-0 lg:overflow-y-auto">
-          <LaborView
-            bom={laborBom ?? editor.doc}
-            labor={labor}
-            company={company}
-            sourceName={
-              laborBom
-                ? laborBomName ?? "Dropped list"
-                : editor.doc
-                  ? "BOM from SOW Builder"
-                  : null
-            }
-            isDropped={laborBom !== null}
-            busy={laborBomBusy}
-            error={laborBomError}
-            onFiles={handleLaborFiles}
-            onPaste={handleLaborPaste}
-            onClear={clearLaborBom}
-          />
+        <main className="flex-1 lg:min-h-0 lg:overflow-hidden">
+          <LaborView labor={labor} />
         </main>
       ) : (
       /* Two-pane workspace. On lg each pane fills the viewport below the top

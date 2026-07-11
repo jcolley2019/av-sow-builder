@@ -1235,9 +1235,10 @@
     },
     {
       "section": "24 - Racking, Cooling, & Power",
-      "id": "24-06",
+      "id": "24-06B",
       "name": "Fan/Cooling",
-      "unitHrs": 0.75
+      "unitHrs": 0.75,
+      "note": "Workbook lists this row as a duplicate 24-06; renumbered 24-06B to keep catalog ids unique"
     },
     {
       "section": "24 - Racking, Cooling, & Power",
