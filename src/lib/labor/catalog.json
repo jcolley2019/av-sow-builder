@@ -1,0 +1,1989 @@
+{
+  "source": "QUOTENUM-LaborEstimate v6.79 09102025, 'AV Equipment' sheet",
+  "items": [
+    {
+      "section": "1 - Core Facility",
+      "id": "01-01",
+      "name": "Site Prep",
+      "unitHrs": 2.0,
+      "note": "Use qty 1 for each on-site day"
+    },
+    {
+      "section": "1 - Core Facility",
+      "id": "01-02",
+      "name": "Rooms",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "1 - Core Facility",
+      "id": "01-03",
+      "name": "Conference Table Small",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "1 - Core Facility",
+      "id": "01-04",
+      "name": "Conference Table Medium",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "1 - Core Facility",
+      "id": "01-05",
+      "name": "Conference Table Large",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "1 - Core Facility",
+      "id": "01-06",
+      "name": "Lectern Small Presenter",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "1 - Core Facility",
+      "id": "01-07",
+      "name": "Lectern Large Classroom",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "1 - Core Facility",
+      "id": "01-10",
+      "name": "Demo Existing Racks",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "1 - Core Facility",
+      "id": "01-11",
+      "name": "Rack Removal",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "1 - Core Facility",
+      "id": "01-12",
+      "name": "Console Removal",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "1 - Core Facility",
+      "id": "01-13",
+      "name": "Equipment Removal / Storage",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "1 - Core Facility",
+      "id": "01-14",
+      "name": "Number of OFE devices",
+      "unitHrs": 0.25
+    },
+    {
+      "section": "2 - Projectors < 5000 Lumens",
+      "id": "02-01",
+      "name": "Projector < 10' - SM",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "2 - Projectors < 5000 Lumens",
+      "id": "02-02",
+      "name": "Projector > 10' - SM",
+      "unitHrs": 3.5
+    },
+    {
+      "section": "2 - Projectors < 5000 Lumens",
+      "id": "02-03",
+      "name": "Projector < 10' - Suspended",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "2 - Projectors < 5000 Lumens",
+      "id": "02-04",
+      "name": "Projector > 10' - Suspended",
+      "unitHrs": 3.0
+    },
+    {
+      "section": "2 - Projectors < 5000 Lumens",
+      "id": "02-05",
+      "name": "Projector Motorized Lift < 10'",
+      "unitHrs": 4.0
+    },
+    {
+      "section": "2 - Projectors < 5000 Lumens",
+      "id": "02-06",
+      "name": "Projector Motorized Lift > 10'",
+      "unitHrs": 6.0
+    },
+    {
+      "section": "3 - Projectors > 5000 Lumens",
+      "id": "03-01",
+      "name": "Projector < 10' - SM",
+      "unitHrs": 3.0
+    },
+    {
+      "section": "3 - Projectors > 5000 Lumens",
+      "id": "03-02",
+      "name": "Projector > 10' - SM",
+      "unitHrs": 4.5
+    },
+    {
+      "section": "3 - Projectors > 5000 Lumens",
+      "id": "03-03",
+      "name": "Projector < 10' - Suspended",
+      "unitHrs": 3.0
+    },
+    {
+      "section": "3 - Projectors > 5000 Lumens",
+      "id": "03-04",
+      "name": "Projector > 10' - Suspended",
+      "unitHrs": 4.0
+    },
+    {
+      "section": "3 - Projectors > 5000 Lumens",
+      "id": "03-05",
+      "name": "Projector Motorized Lift < 10'",
+      "unitHrs": 6.0
+    },
+    {
+      "section": "3 - Projectors > 5000 Lumens",
+      "id": "03-06",
+      "name": "Projector Motorized Lift > 10'",
+      "unitHrs": 8.0
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-01",
+      "name": "Manual Screen  ≤ 100\" - WM",
+      "unitHrs": 1.63
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-02",
+      "name": "Manual Screen  ≤ 100\" - CM",
+      "unitHrs": 1.75
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-03",
+      "name": "Manual Screen ≤ 100\" - CMR",
+      "unitHrs": 3.0
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-04",
+      "name": "Motorized Screen  ≤ 100\" - WM (Incl. Basic Wall Ctrl Switch)",
+      "unitHrs": 3.0
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-05",
+      "name": "Motorized Screen  ≤ 100\" - CM (Incl. Basic Wall Ctrl Switch)",
+      "unitHrs": 3.25
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-06",
+      "name": "Motorized Screen ≤ 100\" - CMR (Incl. Basic Wall Ctrl Switch)",
+      "unitHrs": 4.75
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-07",
+      "name": "Manual Screen  > 100\" - WM",
+      "unitHrs": 2.38
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-08",
+      "name": "Manual Screen  > 100\" - CM",
+      "unitHrs": 2.5
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-09",
+      "name": "Manual Screen > 100\" - CMR",
+      "unitHrs": 4.65
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-10",
+      "name": "Motorized Screen  > 100\" - WM (Incl. Basic Wall Ctrl Switch)",
+      "unitHrs": 4.5
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-11",
+      "name": "Motorized Screen  > 100\" - CM (Incl. Basic Wall Ctrl Switch)",
+      "unitHrs": 4.87
+    },
+    {
+      "section": "4 - Projector Screens",
+      "id": "04-12",
+      "name": "Motorized Screen > 100\" - CMR (Incl. Basic Wall Ctrl Switch)",
+      "unitHrs": 6.75
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-01",
+      "name": "Display ≤ 55\" - WM",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-02",
+      "name": "Display ≤ 55\" - CM Under 10'",
+      "unitHrs": 2.25
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-03",
+      "name": "Display ≤ 55\" - CM Over 10'",
+      "unitHrs": 3.38
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-04",
+      "name": "Display ≤ 55\" - FS",
+      "unitHrs": 1.63
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-05",
+      "name": "Display ≥ 55\" - WM",
+      "unitHrs": 2.3
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-06",
+      "name": "Display ≥ 55\" - CM Under 10'",
+      "unitHrs": 2.5
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-07",
+      "name": "Display ≥ 55\" - CM Over 10'",
+      "unitHrs": 3.5
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-08",
+      "name": "Display ≥ 55\" - FS",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-09",
+      "name": "Interactive Display ≤ 55\" - WM",
+      "unitHrs": 2.5
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-10",
+      "name": "Interactive Display ≤ 55\" - FS",
+      "unitHrs": 2.13
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-11",
+      "name": "Interactive Display ≥ 55\" - WM",
+      "unitHrs": 2.967
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-12",
+      "name": "Interactive Display ≥ 55\" - FS",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "5 - Displays",
+      "id": "05-13",
+      "name": "Interactive Display Calibration",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "6 - LED Video Wall",
+      "id": "06-01",
+      "name": "Panel Installation",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "6 - LED Video Wall",
+      "id": "06-02",
+      "name": "Stock Mount Installation",
+      "unitHrs": 2.25
+    },
+    {
+      "section": "6 - LED Video Wall",
+      "id": "06-03",
+      "name": "Video Wall processor",
+      "unitHrs": 3.38
+    },
+    {
+      "section": "6 - LED Video Wall",
+      "id": "06-04",
+      "name": "Interactive Video Wall",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "6 - LED Video Wall",
+      "id": "06-05",
+      "name": "Interactive Wall Calibration ≤ 4 Panels",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "6 - LED Video Wall",
+      "id": "06-06",
+      "name": "Interactive Wall Calibration ≥ 4 Panels",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "6 - LED Video Wall",
+      "id": "06-07",
+      "name": "Subcontractor Labor",
+      "unitHrs": 1.63
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-01",
+      "name": "Single Display Room System (codec)",
+      "unitHrs": 6.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-02",
+      "name": "Dual Display Room System (codec)",
+      "unitHrs": 8.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-03",
+      "name": "Room System Add to Existing Display(s)",
+      "unitHrs": 4.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-04",
+      "name": "Wireless Collaboration Unit",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-05",
+      "name": "UC Tabletop Device",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-06",
+      "name": "USB Codec",
+      "unitHrs": 2.5
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-07",
+      "name": "USB Huddle Camera",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-08",
+      "name": "Soundbar with Built-In USB Camera",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-09",
+      "name": "Table Mic Extension",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-10",
+      "name": "PTZ Camera - WM < 10'",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-11",
+      "name": "PTZ Camera - WM > 10'",
+      "unitHrs": 3.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-12",
+      "name": "PTZ Camera - CM < 10'",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-13",
+      "name": "PTZ Camera - CM > 10'",
+      "unitHrs": 3.5
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-14",
+      "name": "Document Camera - Table Top",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-15",
+      "name": "Document Camera - CM < 10'",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "7 - Video Conferencing / Collab Equipment",
+      "id": "07-16",
+      "name": "Document Camera - CM > 10'",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "8 - Video Playback Sources",
+      "id": "08-03",
+      "name": "BluRay Player",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "8 - Video Playback Sources",
+      "id": "08-04",
+      "name": "Streaming Device (Apple TV, Chromecast)",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "8 - Video Playback Sources",
+      "id": "08-05",
+      "name": "TV Tuner / CATV / STB (RF)",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "8 - Video Playback Sources",
+      "id": "08-06",
+      "name": "Network STB",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "8 - Video Playback Sources",
+      "id": "08-08",
+      "name": "Video Server",
+      "unitHrs": 4.0
+    },
+    {
+      "section": "9 - Video Record Devices",
+      "id": "09-01",
+      "name": "DVR",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "9 - Video Record Devices",
+      "id": "09-02",
+      "name": "DVD Player / Recorder",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "9 - Video Record Devices",
+      "id": "09-03",
+      "name": "Data Recorder / Storage",
+      "unitHrs": 4.0
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-01",
+      "name": "Matrix Switcher 8x8",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-02",
+      "name": "Matrix Switcher 16x16",
+      "unitHrs": 3.0
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-03",
+      "name": "Matrix Switcher 32x32",
+      "unitHrs": 4.0
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-04",
+      "name": "Matrix Switcher 64x64",
+      "unitHrs": 5.0
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-05",
+      "name": "Scaler Switcher ≤ 8 Sources",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-06",
+      "name": "AVoIP / HDBaseT Tx Wall Plate",
+      "unitHrs": 0.333
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-07",
+      "name": "AVoIP / HDBaseT Tx Surface Mount",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-08",
+      "name": "AVoIP / HDBaseT Rx Wall Plate",
+      "unitHrs": 0.333
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-09",
+      "name": "AVoIP / HDBaseT Rx Surface Mount",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-10",
+      "name": "AVoIP / HDBaseT Receiver/Switcher < 4 I/O",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-11",
+      "name": "AVoIP / HDBaseT Receiver/Switcher > 4 I/O",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-12",
+      "name": "AVoIP / HDBaseT Encoder/Decoder w/PoE",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-13",
+      "name": "EDID Minder",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-14",
+      "name": "All-In-One Presentation System ≤ 2RU",
+      "unitHrs": 2.5
+    },
+    {
+      "section": "10 - AV Routing & Distribution",
+      "id": "10-15",
+      "name": "All-In-One Presentation System ≥ 3RU",
+      "unitHrs": 4.0
+    },
+    {
+      "section": "11 - Audio Playback & Record Devices",
+      "id": "11-01",
+      "name": "Bluetooth Receiver",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "11 - Audio Playback & Record Devices",
+      "id": "11-02",
+      "name": "CD/Media Player",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "11 - Audio Playback & Record Devices",
+      "id": "11-03",
+      "name": "AM/FM/Internet Radio Tuner",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "11 - Audio Playback & Record Devices",
+      "id": "11-04",
+      "name": "MP3 Player",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "11 - Audio Playback & Record Devices",
+      "id": "11-05",
+      "name": "Audio I/O Wallplate (Dante)",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "12 - Audio Playback & Record Devices",
+      "id": "12-01",
+      "name": "CD/R/RW Recorder/Player",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "12 - Audio Playback & Record Devices",
+      "id": "12-02",
+      "name": "MP3 Recorder",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-01",
+      "name": "Handheld Microphone",
+      "unitHrs": 0.333
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-02",
+      "name": "Gooseneck Microphone",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-03",
+      "name": "Ceiling Microphone",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-04",
+      "name": "Tabletop Microphone",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-05",
+      "name": "Ceiling Microphone Array (Small)",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-06",
+      "name": "Ceiling Microphone Array (Large)",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-07",
+      "name": "Tabletop/Lectern Microphone Array (Small)",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-08",
+      "name": "Tabletop/Lectern Microphone Array (Large)",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-09",
+      "name": "Wireless Xmit/Rcver Combo",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-10",
+      "name": "Wireless Transmitter",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-11",
+      "name": "Multi-Channel Digital Wireless Receiver",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "13 - Microphones",
+      "id": "13-12",
+      "name": "Antenna Distribution System",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-01",
+      "name": "DSP 8X8",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-02",
+      "name": "DSP 12X12",
+      "unitHrs": 2.75
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-03",
+      "name": "DSP 16x16",
+      "unitHrs": 3.0
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-04",
+      "name": "DSP Server I/O",
+      "unitHrs": 5.0
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-05",
+      "name": "Dante I/O ≥ 8x8",
+      "unitHrs": 3.0
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-06",
+      "name": "Expansion I/O Surface Mount",
+      "unitHrs": 0.75
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-07",
+      "name": "Expansion I/O Rack Mount",
+      "unitHrs": 1.25
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-08",
+      "name": "Multizone Audio System",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-09",
+      "name": "Line or Mic Mixer ≥ 8x8",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-10",
+      "name": "Audio Mixer < 16 Channels",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-11",
+      "name": "Audio Mixer 16-32 Channels",
+      "unitHrs": 5.0
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-12",
+      "name": "Audio Mixer ≥ 32 Channels",
+      "unitHrs": 8.0
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-13",
+      "name": "Digital Stage Box ≤ 16 Channels",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-14",
+      "name": "Digital Stage Box > 16 Channels",
+      "unitHrs": 2.5
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-15",
+      "name": "Audio Amplifier",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "14 - Audio Routing & Distribution",
+      "id": "14-16",
+      "name": "Network Audio Amplifier",
+      "unitHrs": 0.667
+    },
+    {
+      "section": "15 - Audio Accessories",
+      "id": "15-01",
+      "name": "Effects Processor",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "15 - Audio Accessories",
+      "id": "15-02",
+      "name": "Compressor/Limiter",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "15 - Audio Accessories",
+      "id": "15-03",
+      "name": "Impedence Balancing Amplifier",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "15 - Audio Accessories",
+      "id": "15-04",
+      "name": "Line Level Converter",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "15 - Audio Accessories",
+      "id": "15-05",
+      "name": "Digital to Analog Converter",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "15 - Audio Accessories",
+      "id": "15-06",
+      "name": "Digital Audio Snake",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "15 - Audio Accessories",
+      "id": "15-07",
+      "name": "Analog Audio Snake",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "15 - Audio Accessories",
+      "id": "15-08",
+      "name": "In-Ear Monitoring System",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "16 - Assisted Listening Systems",
+      "id": "16-01",
+      "name": "Assisted Listening System - FM",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "16 - Assisted Listening Systems",
+      "id": "16-02",
+      "name": "Assisted Listening System - IR",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "16 - Assisted Listening Systems",
+      "id": "16-03",
+      "name": "Assisted Listening System - WIFI",
+      "unitHrs": 1.25
+    },
+    {
+      "section": "16 - Assisted Listening Systems",
+      "id": "16-04",
+      "name": "Assisted Listening System - Add Remote Antenna",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "16 - Assisted Listening Systems",
+      "id": "16-05",
+      "name": "Assisted Listening System - Hearing Loop",
+      "unitHrs": 22.5,
+      "note": "Per 1k Sq Ft (of room)"
+    },
+    {
+      "section": "17 - Speakers",
+      "id": "17-01",
+      "name": "Wall Speaker < 10' - SM",
+      "unitHrs": 1.25
+    },
+    {
+      "section": "17 - Speakers",
+      "id": "17-02",
+      "name": "Wall Speaker > 10' - SM",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "17 - Speakers",
+      "id": "17-03",
+      "name": "Wall Speaker < 10' - FM",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "17 - Speakers",
+      "id": "17-04",
+      "name": "Wall Speaker > 10' - FM",
+      "unitHrs": 1.6
+    },
+    {
+      "section": "17 - Speakers",
+      "id": "17-05",
+      "name": "Ceiling Speaker < 10' - SM",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "17 - Speakers",
+      "id": "17-06",
+      "name": "Ceiling Speaker > 10' - SM",
+      "unitHrs": 1.75
+    },
+    {
+      "section": "17 - Speakers",
+      "id": "17-07",
+      "name": "Ceiling Speaker > 10' - FM",
+      "unitHrs": 1.25
+    },
+    {
+      "section": "17 - Speakers",
+      "id": "17-08",
+      "name": "Ceiling Speaker <  10' - FM",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "17 - Speakers",
+      "id": "17-09",
+      "name": "Box Speaker < 40#",
+      "unitHrs": 4.0
+    },
+    {
+      "section": "17 - Speakers",
+      "id": "17-10",
+      "name": "Box Speaker > 40#",
+      "unitHrs": 4.5
+    },
+    {
+      "section": "17 - Speakers",
+      "id": "17-11",
+      "name": "Studio Monitor",
+      "unitHrs": 0.75
+    },
+    {
+      "section": "18 - AV Control System",
+      "id": "18-01",
+      "name": "Control Processor",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "18 - AV Control System",
+      "id": "18-02",
+      "name": "Touch Panel - WM",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "18 - AV Control System",
+      "id": "18-03",
+      "name": "Touch Panel - FS",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "18 - AV Control System",
+      "id": "18-04",
+      "name": "Button Panel - WM",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "18 - AV Control System",
+      "id": "18-05",
+      "name": "Button Panel - FS",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "18 - AV Control System",
+      "id": "18-06",
+      "name": "Volume Control Wall Plate",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "18 - AV Control System",
+      "id": "18-07",
+      "name": "Occupancy Sensor",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "18 - AV Control System",
+      "id": "18-08",
+      "name": "Control Port Expansion Module",
+      "unitHrs": 0.75
+    },
+    {
+      "section": "18 - AV Control System",
+      "id": "18-09",
+      "name": "Expansion Accessory",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "18 - AV Control System",
+      "id": "18-10",
+      "name": "RF/IR Gateway",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "19 - AV Network",
+      "id": "19-01",
+      "name": "Network Switch 1-12 Ports",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "19 - AV Network",
+      "id": "19-02",
+      "name": "Network Switch 13-24 Ports",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "19 - AV Network",
+      "id": "19-03",
+      "name": "Network Switch 25-48 Ports",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "19 - AV Network",
+      "id": "19-04",
+      "name": "Network Switch <48 Ports",
+      "unitHrs": 4.0
+    },
+    {
+      "section": "19 - AV Network",
+      "id": "19-05",
+      "name": "Network Patchbay 12 Ports",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "19 - AV Network",
+      "id": "19-06",
+      "name": "Network Patchbay 24 Ports",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "19 - AV Network",
+      "id": "19-07",
+      "name": "Network Patchbay 48 Ports",
+      "unitHrs": 4.0
+    },
+    {
+      "section": "19 - AV Network",
+      "id": "19-08",
+      "name": "Wireless Access Point",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "19 - AV Network",
+      "id": "19-09",
+      "name": "KVM TX / RX Device",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "19 - AV Network",
+      "id": "19-10",
+      "name": "USB Extender TX/RX",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "19 - AV Network",
+      "id": "19-11",
+      "name": "POE Injector",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "20 - Fiber Optic Equipment",
+      "id": "20-01",
+      "name": "Fiber Channel Switch",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "20 - Fiber Optic Equipment",
+      "id": "20-02",
+      "name": "Fiber Patch Bays",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "20 - Fiber Optic Equipment",
+      "id": "20-03",
+      "name": "Digital/Fiber Encoder",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "20 - Fiber Optic Equipment",
+      "id": "20-04",
+      "name": "Digital/Fiber Decoder",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "20 - Fiber Optic Equipment",
+      "id": "20-05",
+      "name": "Fiber Encoder/Decoder",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "21 - IPTV Distribution Equipment",
+      "id": "21-01",
+      "name": "Encoders",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "21 - IPTV Distribution Equipment",
+      "id": "21-02",
+      "name": "Decoders",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "21 - IPTV Distribution Equipment",
+      "id": "21-03",
+      "name": "DirectTV COM 2000",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "21 - IPTV Distribution Equipment",
+      "id": "21-04",
+      "name": "ATX Ucrypt",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "21 - IPTV Distribution Equipment",
+      "id": "21-05",
+      "name": "DSS Receiver/Antenna",
+      "unitHrs": 6.0
+    },
+    {
+      "section": "22 - RF Distribution Equipment",
+      "id": "22-01",
+      "name": "RF Amplifier",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "22 - RF Distribution Equipment",
+      "id": "22-02",
+      "name": "Splitter/Combiner/Tap",
+      "unitHrs": 0.75
+    },
+    {
+      "section": "22 - RF Distribution Equipment",
+      "id": "22-03",
+      "name": "Mux/Demux",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "22 - RF Distribution Equipment",
+      "id": "22-04",
+      "name": "QAM",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "22 - RF Distribution Equipment",
+      "id": "22-05",
+      "name": "RF STB",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "23 - Architectural Connectivity",
+      "id": "23-01",
+      "name": "Cable Management Compartment",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "23 - Architectural Connectivity",
+      "id": "23-02",
+      "name": "Pass-through Plate",
+      "unitHrs": 0.167
+    },
+    {
+      "section": "23 - Architectural Connectivity",
+      "id": "23-03",
+      "name": "Connector Plate",
+      "unitHrs": 0.167
+    },
+    {
+      "section": "23 - Architectural Connectivity",
+      "id": "23-04",
+      "name": "Retractable Connections",
+      "unitHrs": 0.25
+    },
+    {
+      "section": "23 - Architectural Connectivity",
+      "id": "23-05",
+      "name": "Power Modules",
+      "unitHrs": 0.167
+    },
+    {
+      "section": "23 - Architectural Connectivity",
+      "id": "23-06",
+      "name": "Table Cut",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "23 - Architectural Connectivity",
+      "id": "23-07",
+      "name": "Utility (Wall/Table) Shelf for AV Component",
+      "unitHrs": 0.4
+    },
+    {
+      "section": "23 - Architectural Connectivity",
+      "id": "23-08",
+      "name": "Custom Wall Plate ≤ 3-Gang",
+      "unitHrs": 0.25
+    },
+    {
+      "section": "23 - Architectural Connectivity",
+      "id": "23-09",
+      "name": "Custom Wall Plate ≥ 4-Gang",
+      "unitHrs": 0.137
+    },
+    {
+      "section": "24 - Racking, Cooling, & Power",
+      "id": "24-01",
+      "name": "Racks ≤ 21RU",
+      "unitHrs": 2.0
+    },
+    {
+      "section": "24 - Racking, Cooling, & Power",
+      "id": "24-02",
+      "name": "Racks ≥ 22RU",
+      "unitHrs": 4.0
+    },
+    {
+      "section": "24 - Racking, Cooling, & Power",
+      "id": "24-03",
+      "name": "Rack Shelf",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "24 - Racking, Cooling, & Power",
+      "id": "24-04",
+      "name": "Rack Blanks & Vent Plates",
+      "unitHrs": 0.125
+    },
+    {
+      "section": "24 - Racking, Cooling, & Power",
+      "id": "24-05",
+      "name": "Horizontal PDU",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "24 - Racking, Cooling, & Power",
+      "id": "24-06",
+      "name": "Vertical PDU",
+      "unitHrs": 0.75
+    },
+    {
+      "section": "24 - Racking, Cooling, & Power",
+      "id": "24-06",
+      "name": "Fan/Cooling",
+      "unitHrs": 0.75
+    },
+    {
+      "section": "24 - Racking, Cooling, & Power",
+      "id": "24-07",
+      "name": "UPS ≤ 2RU",
+      "unitHrs": 1.0
+    },
+    {
+      "section": "24 - Racking, Cooling, & Power",
+      "id": "24-08",
+      "name": "UPS ≥ 2RU",
+      "unitHrs": 1.5
+    },
+    {
+      "section": "24 - Racking, Cooling, & Power",
+      "id": "24-09",
+      "name": "UPS External Battery Add ≤ 2RU",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "24 - Racking, Cooling, & Power",
+      "id": "24-10",
+      "name": "UPS External Battery Add  ≥ 2RU",
+      "unitHrs": 0.75
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-01",
+      "name": "Single Cable 1-8 Pair (to 1 destination)",
+      "unitHrs": 0.01,
+      "note": "Per Foot"
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-02",
+      "name": "Single Cable 8-24 Pair (to 1 destination)",
+      "unitHrs": 0.011,
+      "note": "Per Foot"
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-03",
+      "name": "Single Cable 25 Pair (to 1 destination)",
+      "unitHrs": 1.36,
+      "note": "Per 100'"
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-04",
+      "name": "Single Cable 50 Pair  (to 1 destination)",
+      "unitHrs": 1.63,
+      "note": "Per 100'"
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-05",
+      "name": "Single Cable 100 Pair +  (to 1 destination)",
+      "unitHrs": 2.09,
+      "note": "Per 100'"
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-06",
+      "name": "Two-to-Four Cables 1-8 Pair  (to 1 destination)",
+      "unitHrs": 0.017,
+      "note": "Per Foot"
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-07",
+      "name": "Five + Cables 1-8 Pair  (to 1 destination)",
+      "unitHrs": 2.24,
+      "note": "Per 100'"
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-08",
+      "name": "Single Cable Coax  (to 1 destination)",
+      "unitHrs": 0.97,
+      "note": "Per 100'"
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-09",
+      "name": "Two-to-Four Cables 1-8 Coax  (to 1 destination)",
+      "unitHrs": 1.33,
+      "note": "Per 100'"
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-10",
+      "name": "Five + Cable Coax  (to 1 destination)",
+      "unitHrs": 1.81,
+      "note": "Per 100'"
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-11",
+      "name": "HDMI / DVI / VGA /Data  (to 1 destination)",
+      "unitHrs": 0.52,
+      "note": "Per 50'"
+    },
+    {
+      "section": "25 - Cable Installation",
+      "id": "25-12",
+      "name": "Component / S-Video / Composite  (to 1 destination)",
+      "unitHrs": 0.5,
+      "note": "Per 50'"
+    },
+    {
+      "section": "26 - Cable Supports",
+      "id": "26-01",
+      "name": "J - Hook Installation",
+      "unitHrs": 0.07,
+      "note": "Each"
+    },
+    {
+      "section": "26 - Cable Supports",
+      "id": "26-02",
+      "name": "Beam Clamp Installation",
+      "unitHrs": 0.07,
+      "note": "Each"
+    },
+    {
+      "section": "26 - Cable Supports",
+      "id": "26-03",
+      "name": "D - Rings",
+      "unitHrs": 0.07,
+      "note": "Each"
+    },
+    {
+      "section": "26 - Cable Supports",
+      "id": "26-04",
+      "name": "Basket Type Wire Tray - 12\" Width",
+      "unitHrs": 0.13,
+      "note": "Per Foot"
+    },
+    {
+      "section": "26 - Cable Supports",
+      "id": "26-05",
+      "name": "Basket Type Wire Tray - 18\" Width",
+      "unitHrs": 0.15,
+      "note": "Per Foot"
+    },
+    {
+      "section": "26 - Cable Supports",
+      "id": "26-06",
+      "name": "Basket Type Wire Tray - 24\" Width",
+      "unitHrs": 0.18,
+      "note": "Per Foot"
+    },
+    {
+      "section": "26 - Cable Supports",
+      "id": "26-07",
+      "name": "Basket Tray Hanger",
+      "unitHrs": 0.4,
+      "note": "Each"
+    },
+    {
+      "section": "26 - Cable Supports",
+      "id": "26-08",
+      "name": "Basket Tray Transition Elbow or Tee",
+      "unitHrs": 1.15,
+      "note": "Each"
+    },
+    {
+      "section": "26 - Cable Supports",
+      "id": "26-09",
+      "name": "Powder Activated Fastner",
+      "unitHrs": 0.1,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-01",
+      "name": "Raceway - 8' Length",
+      "unitHrs": 0.05,
+      "note": "Each - 8' Increments"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-02",
+      "name": "Raceway - Joint Cover",
+      "unitHrs": 0.07,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-03",
+      "name": "Raceway - Blank End",
+      "unitHrs": 0.07,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-04",
+      "name": "Raceway - Flat Elbow",
+      "unitHrs": 0.12,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-05",
+      "name": "Raceway - Internal Elbow",
+      "unitHrs": 0.13,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-06",
+      "name": "Raceway - External Elbow",
+      "unitHrs": 0.13,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-07",
+      "name": "Raceway - Tee",
+      "unitHrs": 0.17,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-08",
+      "name": "Raceway - Drop Ceiling Connector",
+      "unitHrs": 0.17,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-09",
+      "name": "Raceway - Reducing Connector",
+      "unitHrs": 0.12,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-10",
+      "name": "Surface Mount Box - 1-Gang Deep Box",
+      "unitHrs": 0.33,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-11",
+      "name": "Surface Mount Box - 2-Gang Deep Box",
+      "unitHrs": 0.33,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-12",
+      "name": "Low Voltage Device Ring 1-Gang",
+      "unitHrs": 0.08,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-13",
+      "name": "Low Voltage Device Ring 2-Gang",
+      "unitHrs": 0.12,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-14",
+      "name": "Low Voltage Device Ring 3-Gang",
+      "unitHrs": 0.15,
+      "note": "Each"
+    },
+    {
+      "section": "27 - Surface Mount Raceways & Boxes",
+      "id": "27-15",
+      "name": "Low Voltage Device Ring 4-Gang",
+      "unitHrs": 0.17,
+      "note": "Each"
+    },
+    {
+      "section": "28 - Firestopping",
+      "id": "28-01",
+      "name": "Cable Penetration up to 1\" (EACH)",
+      "unitHrs": 1.0,
+      "note": "Each"
+    },
+    {
+      "section": "28 - Firestopping",
+      "id": "28-02",
+      "name": "Sleeving Up to 4\" (EACH)",
+      "unitHrs": 1.09,
+      "note": "Each"
+    },
+    {
+      "section": "28 - Firestopping",
+      "id": "28-03",
+      "name": "Cable Tray Up to 18\" (EACH)",
+      "unitHrs": 1.36,
+      "note": "Each"
+    },
+    {
+      "section": "28 - Firestopping",
+      "id": "28-04",
+      "name": "Plywood Backboard 4x8\" (EACH)",
+      "unitHrs": 1.63,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-01",
+      "name": "Toggle Bolt - 1/4\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-02",
+      "name": "Toggle Bolt - 3/8\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-03",
+      "name": "Toggle Bolt - 1/2\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-04",
+      "name": "Toggle Bolt - 5/8\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-05",
+      "name": "Toggle Bolt - 3/4\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-06",
+      "name": "Toggle Bolt - 7/8\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-07",
+      "name": "Concrete Anchor Bolt - 1/4\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-08",
+      "name": "Concrete Anchor Bolt - 3/8\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-09",
+      "name": "Concrete Anchor Bolt - 1/2\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-10",
+      "name": "Concrete Anchor Bolt - 5/8\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-11",
+      "name": "Concrete Anchor Bolt - 3/4\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "29 - Fasteners / Hangers / Supports",
+      "id": "29-12",
+      "name": "Concrete Anchor Bolt - 1\"",
+      "unitHrs": 0.25,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-01",
+      "name": "Channel Nuts w/ Springs",
+      "unitHrs": 0.07,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-02",
+      "name": "Channel Nuts w/o Springs",
+      "unitHrs": 0.08,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-03",
+      "name": "Channel Studs w/ Springs",
+      "unitHrs": 0.07,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-04",
+      "name": "Channel Studs w/o Springs",
+      "unitHrs": 0.08,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-05",
+      "name": "Pre-Cut Strut - 6\"",
+      "unitHrs": 0.12,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-06",
+      "name": "Pre-Cut Strut - 12\"",
+      "unitHrs": 0.13,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-07",
+      "name": "Pre-Cut Strut - 18\"",
+      "unitHrs": 0.14,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-08",
+      "name": "Pre-Cut Strut - 24\"",
+      "unitHrs": 0.17,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-09",
+      "name": "Pre-Cut Strut - 36\"",
+      "unitHrs": 0.2,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-10",
+      "name": "Pre-Cut Strut - 48\"",
+      "unitHrs": 0.22,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-11",
+      "name": "Field-Cut Strut 6\"",
+      "unitHrs": 0.17,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-12",
+      "name": "Field-Cut Strut 12\"",
+      "unitHrs": 0.18,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-13",
+      "name": "Field-Cut Strut 18\"",
+      "unitHrs": 0.2,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-14",
+      "name": "Field Cut Strut 24\"",
+      "unitHrs": 0.22,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-15",
+      "name": "Field Cut Strut 36\"",
+      "unitHrs": 0.27,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-16",
+      "name": "Field Cut Strut 48\"",
+      "unitHrs": 0.3,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-17",
+      "name": "Pre-Cut Hanger Rod - 6\"",
+      "unitHrs": 0.1,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-18",
+      "name": "Pre-Cut Hanger Rod - 12\"",
+      "unitHrs": 0.12,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-19",
+      "name": "Pre-Cut Hanger Rod - 18\"",
+      "unitHrs": 0.12,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-20",
+      "name": "Pre-Cut Hanger Rod - 24\"",
+      "unitHrs": 0.13,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-21",
+      "name": "Pre-Cut Hanger Rod - 36\"",
+      "unitHrs": 0.15,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-22",
+      "name": "Pre-Cut Hanger Rod - 48\"",
+      "unitHrs": 0.18,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-23",
+      "name": "Field-Cut Hanger Rod - 6\"",
+      "unitHrs": 0.12,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-24",
+      "name": "Field-Cut Hanger Rod - 12\"",
+      "unitHrs": 0.13,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-25",
+      "name": "Field-Cut Hanger Rod - 18\"",
+      "unitHrs": 0.15,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-26",
+      "name": "Field-Cut Hanger Rod - 24\"",
+      "unitHrs": 0.17,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-27",
+      "name": "Field-Cut Hanger Rod - 36\"",
+      "unitHrs": 0.02,
+      "note": "Each"
+    },
+    {
+      "section": "30 - Unistrut & Components",
+      "id": "30-28",
+      "name": "Field-Cut Hanger Rod - 48\"",
+      "unitHrs": 0.23,
+      "note": "Each"
+    },
+    {
+      "section": "31 - Cable Fabrication",
+      "id": "31-01",
+      "name": "Video Cables",
+      "unitHrs": 0.125
+    },
+    {
+      "section": "31 - Cable Fabrication",
+      "id": "31-02",
+      "name": "Triax Cables",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "31 - Cable Fabrication",
+      "id": "31-03",
+      "name": "Audio & TC Cables",
+      "unitHrs": 0.25
+    },
+    {
+      "section": "31 - Cable Fabrication",
+      "id": "31-04",
+      "name": "Control Cables",
+      "unitHrs": 0.75
+    },
+    {
+      "section": "31 - Cable Fabrication",
+      "id": "31-05",
+      "name": "Intercom Cables",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "31 - Cable Fabrication",
+      "id": "31-06",
+      "name": "Tally Cables",
+      "unitHrs": 0.125
+    },
+    {
+      "section": "31 - Cable Fabrication",
+      "id": "31-07",
+      "name": "Clock Cables",
+      "unitHrs": 0.125
+    },
+    {
+      "section": "31 - Cable Fabrication",
+      "id": "31-08",
+      "name": "LAN Cables",
+      "unitHrs": 0.1
+    },
+    {
+      "section": "31 - Cable Fabrication",
+      "id": "31-09",
+      "name": "AC Cords",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "31 - Cable Fabrication",
+      "id": "31-10",
+      "name": "Ground Cables",
+      "unitHrs": 0.125
+    },
+    {
+      "section": "31 - Cable Fabrication",
+      "id": "31-11",
+      "name": "Custom Cable Assemblies",
+      "unitHrs": 0.5
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-01",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-02",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-03",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-04",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-05",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-06",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-07",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-08",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-09",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-10",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-11",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-12",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-13",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-14",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-15",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    },
+    {
+      "section": "99 - Misc Adds",
+      "id": "99-16",
+      "name": "… add device here",
+      "unitHrs": 0.0
+    }
+  ]
+}
