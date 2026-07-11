@@ -49,6 +49,14 @@ import {
   type StyleMode,
 } from "@/lib/api";
 import type { BomDoc, RomDoc, SowDoc, StyleTheme } from "@/lib/types";
+import { BUILT_IN_STYLES, type ReportStyleId } from "@/lib/themes";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 
 type OutputMode = "sow" | "custom" | "rom" | "compare";
@@ -245,6 +253,11 @@ function App() {
   // Save-to-library status for the current custom examples.
   const [saveStyleBusy, setSaveStyleBusy] = useState(false);
   const [saveStyleMsg, setSaveStyleMsg] = useState<string | null>(null);
+
+  // SC.7: which built-in visual style the .docx export uses. The template
+  // look is the Standard SOW default; "classic" restores the old hardcoded
+  // house look. A Custom SOW example's extracted theme still wins over this.
+  const [reportStyleId, setReportStyleId] = useState<ReportStyleId>("template");
 
   // Compare mode: a second (read-only) equipment list + a dependency check.
   const [compareBom, setCompareBom] = useState<BomDoc | null>(null);
@@ -661,9 +674,12 @@ function App() {
       });
     } else {
       if (!sow) return;
-      // SC.6: themed export in Custom SOW mode only — Standard SOW keeps the
-      // house look. First example's theme wins when two are loaded.
-      const theme = mode === "custom" ? customExamples[0]?.theme : undefined;
+      // SC.6/SC.7 theme resolution: a Custom SOW example's extracted theme
+      // wins (first example when two are loaded); otherwise the selected
+      // built-in report style applies ("template" by default, "classic" =
+      // the old hardcoded house look, theme undefined).
+      const builtIn = BUILT_IN_STYLES.find((s) => s.id === reportStyleId)?.theme;
+      const theme = (mode === "custom" ? customExamples[0]?.theme : undefined) ?? builtIn;
       void downloadSowDocx(sow, models, num ? `${num}_SOW.docx` : "SOW.docx", theme).catch((e) => {
         console.error("[SOW] .docx export failed", e);
       });
@@ -839,6 +855,26 @@ function App() {
                     />
                     {mode !== "compare" && (
                       <div className="flex flex-wrap items-center gap-2">
+                        {(mode === "sow" || mode === "custom") && (
+                          <Select
+                            value={reportStyleId}
+                            onValueChange={(v) => setReportStyleId(v as ReportStyleId)}
+                          >
+                            <SelectTrigger
+                              className="h-8 w-[180px] text-xs"
+                              aria-label="Report style"
+                            >
+                              <SelectValue placeholder="Report style" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {BUILT_IN_STYLES.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                         {activeDoc && (
                           <Button variant="outline" size="sm" onClick={handleDownload}>
                             <Download /> Download .docx
