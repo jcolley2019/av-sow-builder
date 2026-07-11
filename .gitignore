@@ -21,6 +21,9 @@
 # Word docs in the repo root (generated SOWs, scratch files)
 /*.docx
 
+# Generated sample .docx renders (SC.6 style-theme demos)
+/samples/
+
 # TypeScript incremental build info
 *.tsbuildinfo
 
