@@ -26,15 +26,23 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
-import { CATALOG, type Adjusted, type CatalogItem, type LaborLineKey } from "@/lib/labor/engine";
+import {
+  CATALOG,
+  RATES,
+  type Adjusted,
+  type CatalogItem,
+  type LaborLineKey,
+  type RateId,
+} from "@/lib/labor/engine";
 import { formatDateShort, projectTimeline, weeksFromDays } from "@/lib/labor/timeline";
 import {
-  SERVICE_COLS,
   SERVICE_COL_LABELS,
   servicesToTsv,
-  type EosRates,
+  type ServiceRates,
   type ServiceColKey,
+  type ServicesTravelMode,
 } from "@/lib/labor/servicesView";
+import { computeTravelPlan, type CrewRoster, type TravelMode } from "@/lib/labor/travel";
 import type {
   CatalogGroupFilter,
   LaborModel,
@@ -751,6 +759,17 @@ const LINE_GROUPS: { title: string; keys: LaborLineKey[] }[] = [
   { title: "Field Engineer", keys: ["feOnSiteCommissioning", "feOnSiteCommissioningPrem", "feOnSiteTravel"] },
   { title: "Training", keys: ["training", "trainingPrem", "trainingTravel"] },
   { title: "Event Support", keys: ["eventSupport", "eventSupportPrem", "eventSupportTravel"] },
+  {
+    title: "Travel (Fly)",
+    keys: ["flyTravelLead", "flyTravelTech", "flyTravelFe", "flyTravelPm", "flyTravelEng"],
+  },
+];
+
+/** Travel-handling options (LT.2i) — shown in settings + on Services. */
+const TRAVEL_MODES: { key: ServicesTravelMode; label: string; hint: string }[] = [
+  { key: "exclude", label: "Exclude travel", hint: "Travel stays in Details only" },
+  { key: "column", label: "Travel column", hint: "Adds a Travel Hrs column" },
+  { key: "average", label: "Average into install", hint: "Folds travel into Install Days" },
 ];
 
 /** Std vs premium capacity bar: blue = standard hours, amber = premium spill. */
@@ -1165,13 +1184,13 @@ function SummaryRail({ labor }: { labor: LaborModel }) {
 }
 
 // ---------------------------------------------------------------------------
-// EOS Services sheet (LT.2e) — per-room D-Tools Services-tab table
+// Services sheet (LT.2e) — per-room D-Tools Services-tab table
 // ---------------------------------------------------------------------------
 
 /** Priced roles in column order; qty columns (calls/survey) carry no rate. */
-const eosRateMeta = (
-  r: EosRates,
-): { col: ServiceColKey; key: keyof EosRates; rate: number; per: string }[] => [
+const serviceRateMeta = (
+  r: ServiceRates,
+): { col: ServiceColKey; key: keyof ServiceRates; rate: number; per: string }[] => [
   { col: "installDays", key: "installPerDay", rate: r.installPerDay, per: "day" },
   { col: "designHrs", key: "designPerHr", rate: r.designPerHr, per: "hr" },
   { col: "cadHrs", key: "cadPerHr", rate: r.cadPerHr, per: "hr" },
@@ -1181,7 +1200,7 @@ const eosRateMeta = (
 ];
 
 /**
- * Click-to-edit rate in the cost-reference block. Writes the same eosRates
+ * Click-to-edit rate in the cost-reference block. Writes the same serviceRates
  * hook state the settings popover edits — two views over one state.
  */
 function RateEditor({
@@ -1249,14 +1268,16 @@ function RateEditor({
 
 function ServicesSheet({ labor }: { labor: LaborModel }) {
   const table = labor.servicesTable;
-  const rateMeta = eosRateMeta(labor.eosRates);
+  const rateMeta = serviceRateMeta(labor.serviceRates);
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(copyTimer.current), []);
 
   const copyForDTools = async () => {
     try {
-      await navigator.clipboard.writeText(servicesToTsv(table));
+      await navigator.clipboard.writeText(
+        servicesToTsv(table, labor.includeTravelInCopy && labor.travelMode === "column"),
+      );
       setCopied(true);
       window.clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopied(false), 2500);
@@ -1270,8 +1291,27 @@ function ServicesSheet({ labor }: { labor: LaborModel }) {
       <Card>
         <CardContent className="p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="eyebrow">EOS Services · one row per room</span>
+            <span className="eyebrow">Services · one row per room</span>
             <span className="flex items-center gap-2">
+              {/* Compact travel-handling control (same state as settings) */}
+              <span className="inline-flex rounded-md border border-border p-0.5">
+                {TRAVEL_MODES.map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    title={m.hint}
+                    onClick={() => labor.setTravelMode(m.key)}
+                    className={cn(
+                      "rounded px-2 py-0.5 text-[10px] transition-colors",
+                      labor.travelMode === m.key
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </span>
               {copied && (
                 <span role="status" className="text-[11px] text-emerald-400">
                   Copied — paste at Services!N4
@@ -1295,7 +1335,7 @@ function ServicesSheet({ labor }: { labor: LaborModel }) {
               <thead>
                 <tr className="border-b border-border text-left">
                   <th className="py-1.5 pr-3 font-normal text-muted-foreground">Room</th>
-                  {SERVICE_COLS.map((col) => (
+                  {table.columns.map((col) => (
                     <th key={col} className="px-2 py-1.5 text-center font-normal text-muted-foreground">
                       {SERVICE_COL_LABELS[col]}
                     </th>
@@ -1306,25 +1346,30 @@ function ServicesSheet({ labor }: { labor: LaborModel }) {
                 {table.rows.map((row) => (
                   <tr key={row.roomId} className="border-b border-border/40">
                     <td className="max-w-[180px] truncate py-1 pr-3">{row.roomName}</td>
-                    {SERVICE_COLS.map((col) => (
-                      <td key={col} className="px-2 py-1 text-center">
-                        <OverrideValue
-                          adj={row.cells[col]}
-                          unit=""
-                          label={`${row.roomName} ${SERVICE_COL_LABELS[col]}`}
-                          onSet={(v) => labor.setServiceOverride(row.roomId, col, v)}
-                        />
-                      </td>
-                    ))}
+                    {table.columns.map((col) => {
+                      const adj = row.cells[col];
+                      return (
+                        <td key={col} className="px-2 py-1 text-center">
+                          {adj && (
+                            <OverrideValue
+                              adj={adj}
+                              unit=""
+                              label={`${row.roomName} ${SERVICE_COL_LABELS[col]}`}
+                              onSet={(v) => labor.setServiceOverride(row.roomId, col, v)}
+                            />
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
               <tfoot className="font-mono tabular">
                 <tr className="font-medium">
                   <td className="py-1.5 pr-3 font-sans text-muted-foreground">Totals</td>
-                  {SERVICE_COLS.map((col) => (
+                  {table.columns.map((col) => (
                     <td key={col} className="px-2 py-1.5 text-center">
-                      {fmtHrs(table.totals[col])}
+                      {fmtHrs(table.totals[col] ?? 0)}
                     </td>
                   ))}
                 </tr>
@@ -1360,13 +1405,48 @@ function ServicesSheet({ labor }: { labor: LaborModel }) {
                       value={m.rate}
                       per={m.per}
                       label={SERVICE_COL_LABELS[m.col]}
-                      onCommit={(n) => labor.setEosRate(m.key, n)}
+                      onCommit={(n) => labor.setServiceRate(m.key, n)}
                     />
                     <span className="w-24 text-right font-mono tabular">
-                      {fmtUsd(table.dollars[m.col as keyof typeof table.dollars])}
+                      {fmtUsd(table.dollars[m.col as keyof typeof table.dollars] ?? 0)}
                     </span>
                   </div>
                 ))}
+                {/* Travel lands here in modes b/c (LT.2i) */}
+                {table.travel.mode !== "exclude" && (
+                  <>
+                    {table.travel.mode === "column" && (
+                      <div className="grid grid-cols-[1fr_auto_auto_auto] items-baseline gap-3 border-t border-border/60 pt-1">
+                        <span className="text-muted-foreground">Travel Hrs</span>
+                        <span className="font-mono tabular text-muted-foreground">
+                          {fmtHrs(table.totals.travelHrs ?? 0)}
+                        </span>
+                        <span className="font-mono tabular text-muted-foreground">
+                          @ install day rate
+                        </span>
+                        <span className="w-24 text-right font-mono tabular">
+                          {fmtUsd(table.dollars.travelHrs ?? 0)}
+                        </span>
+                      </div>
+                    )}
+                    {table.travel.mode === "average" && (
+                      <div className="grid grid-cols-[1fr_auto] items-baseline gap-3 border-t border-border/60 pt-1">
+                        <span className="text-muted-foreground">
+                          Travel labor ({fmtHrs(table.travel.laborHours)} h) averaged into Install Days
+                        </span>
+                        <span />
+                      </div>
+                    )}
+                    {labor.estimate.expenses.map((e) => (
+                      <div key={e.key} className="grid grid-cols-[1fr_auto] items-baseline gap-3">
+                        <span className="text-muted-foreground">{e.description}</span>
+                        <span className="w-24 text-right font-mono tabular text-muted-foreground">
+                          {fmtUsd(e.extCost)}
+                        </span>
+                      </div>
+                    ))}
+                  </>
+                )}
                 <div className="mt-1 grid grid-cols-[1fr_auto] items-baseline gap-3 border-t border-border/60 pt-1 font-medium">
                   <span>Services total</span>
                   <span className="font-mono tabular text-primary">{fmtUsd(table.grandTotal)}</span>
@@ -1391,10 +1471,505 @@ function ServicesSheet({ labor }: { labor: LaborModel }) {
 }
 
 // ---------------------------------------------------------------------------
-// Labor settings popover (LT.2d) — SMA toggle + EOS rate editing
+// Details view (LT.2h) — the workbook's Project Details experience: shared
+// inputs as blue blocks, line-item groups, and Summary/Detailed Summary
+// rollups. Pure presentation over the same estimate — no new math.
 // ---------------------------------------------------------------------------
 
-const EOS_RATE_FIELDS: { key: keyof EosRates; label: string }[] = [
+/** Workbook right-side SUMMARY groups rate ids into role families. */
+function familyOf(id: RateId): "PM" | "Engineering" | "Field" | "Expenses" {
+  if (id === "PM" || id === "PM_PREM" || id === "PC") return "PM";
+  if (/^(ENG|CAD|IT|PROG)/.test(id)) return "Engineering";
+  if (id === "EXPENSES") return "Expenses";
+  return "Field";
+}
+
+/** Collapsible card section for the Details column. */
+function DetailsSection({
+  title,
+  right,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  right?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className="flex flex-1 items-center gap-1.5 text-left"
+          >
+            {open ? (
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            )}
+            <span className="eyebrow">{title}</span>
+          </button>
+          {right}
+        </div>
+        {open && <div className="mt-3">{children}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Workbook-blue input block. */
+function InputBlock({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border bg-primary/[0.07] p-3">
+      <span className="eyebrow">{title}</span>
+      <div className="mt-1.5 space-y-1">{children}</div>
+    </div>
+  );
+}
+
+/** Shared chevron that reveals dollar columns (same state as Services). */
+function CostRefToggle({ labor }: { labor: LaborModel }) {
+  return (
+    <button
+      type="button"
+      onClick={() => labor.setCostRefOpen(!labor.costRefOpen)}
+      aria-expanded={labor.costRefOpen}
+      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+    >
+      {labor.costRefOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+      Cost (reference)
+    </button>
+  );
+}
+
+function DetailsView({ labor }: { labor: LaborModel }) {
+  const { inputs, estimate } = labor;
+  const d = estimate.derived;
+  const lineMap = useMemo(() => new Map(estimate.lines.map((l) => [l.key, l])), [estimate]);
+  const setOv = (key: OverrideKey) => (v: number | null) => labor.setOverride(key, v);
+  const showCost = labor.costRefOpen;
+  const travel = inputs.travel ?? { roster: { lead: 0, tech: 0, fe: 0, pm: 0, eng: 0 }, tripCount: 0, onSiteDaysPerTrip: 0, mode: "drive" as TravelMode };
+  const plan = computeTravelPlan(inputs.travel);
+
+  // Rollups by rate id and role family, straight from the engine estimate.
+  const rollupMap = useMemo(
+    () => new Map(estimate.rollup.map((r) => [r.rateId, r])),
+    [estimate],
+  );
+  const families = useMemo(() => {
+    const fam = { PM: { hours: 0, cost: 0 }, Engineering: { hours: 0, cost: 0 }, Field: { hours: 0, cost: 0 }, Expenses: { hours: 0, cost: 0 } };
+    for (const r of estimate.rollup) {
+      const f = fam[familyOf(r.rateId)];
+      f.hours += r.hours;
+      f.cost += r.extCost;
+    }
+    return fam;
+  }, [estimate]);
+
+  return (
+    <div className="mx-auto w-full max-w-[1100px] space-y-4 px-4 pb-6 pt-3 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+      {/* ---- 1. Project inputs — the workbook's blue blocks; same state as the Estimate rail ---- */}
+      <DetailsSection title="Project Inputs">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <InputBlock title="Project">
+            <NumField
+              label="# of drawings"
+              value={inputs.numDrawings}
+              onChange={(n) => labor.updateInputs({ numDrawings: Math.round(n) })}
+            />
+            <div className="flex items-center justify-between gap-3 py-0.5">
+              <span className="text-xs text-muted-foreground">Project type</span>
+              <div className="inline-flex rounded-md border border-border p-0.5">
+                {([false, true] as const).map((b) => (
+                  <button
+                    key={String(b)}
+                    type="button"
+                    onClick={() => labor.updateInputs({ isBroadcast: b })}
+                    className={cn(
+                      "rounded px-2 py-0.5 text-[11px] transition-colors",
+                      inputs.isBroadcast === b
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {b ? "Broadcast" : "AV"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </InputBlock>
+
+          <InputBlock title="Crews & Split">
+            {PHASES.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between py-0.5">
+                <span className="text-xs text-muted-foreground">{label}</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground">crew</span>
+                  <Stepper
+                    label={`${label} crew size`}
+                    value={inputs[key].crewSize}
+                    min={0}
+                    step={1}
+                    onChange={(n) => labor.updatePhase(key, { crewSize: n })}
+                  />
+                </span>
+              </div>
+            ))}
+            <NumField
+              label="% In-House"
+              value={inputs.percentInHouse ?? 25}
+              step={5}
+              suffix="%"
+              onChange={(n) => labor.updateInputs({ percentInHouse: Math.min(100, Math.max(0, n)) })}
+            />
+          </InputBlock>
+
+          <InputBlock title="Travel Mileage & Time">
+            <NumField
+              label="Travel time, one-way"
+              value={inputs.travelTimeOneWayHrs}
+              step={0.25}
+              suffix="hrs"
+              onChange={(n) => labor.updateInputs({ travelTimeOneWayHrs: n })}
+            />
+            <NumField
+              label="Distance, initial one-way"
+              value={inputs.projectDistanceInitialMi}
+              suffix="mi"
+              onChange={(n) => labor.updateInputs({ projectDistanceInitialMi: n })}
+            />
+            <NumField
+              label="Distance, daily one-way"
+              value={inputs.projectDistanceDailyMi}
+              suffix="mi"
+              onChange={(n) => labor.updateInputs({ projectDistanceDailyMi: n })}
+            />
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Van mileage (auto)</span>
+              <OverrideValue adj={d.vanMiles} onSet={setOv("onSiteVanMiles")} unit="mi" label="van mileage" />
+            </div>
+          </InputBlock>
+
+          <InputBlock title="Training">
+            <NumField
+              label="Sessions"
+              value={inputs.trainings.sessions}
+              onChange={(n) =>
+                labor.updateInputs({ trainings: { ...inputs.trainings, sessions: Math.round(n) } })
+              }
+            />
+            <NumField
+              label="Hours per session"
+              value={inputs.trainings.hoursEach}
+              step={0.5}
+              suffix="hrs"
+              onChange={(n) => labor.updateInputs({ trainings: { ...inputs.trainings, hoursEach: n } })}
+            />
+          </InputBlock>
+
+          <InputBlock title="Event Support">
+            <NumField
+              label="Events"
+              value={inputs.events.count}
+              onChange={(n) => labor.updateInputs({ events: { ...inputs.events, count: Math.round(n) } })}
+            />
+            <NumField
+              label="Days per event"
+              value={inputs.events.daysEach}
+              onChange={(n) => labor.updateInputs({ events: { ...inputs.events, daysEach: n } })}
+            />
+            <NumField
+              label="Event crew size"
+              value={inputs.events.crewSize}
+              onChange={(n) => labor.updateInputs({ events: { ...inputs.events, crewSize: Math.round(n) } })}
+            />
+          </InputBlock>
+
+          <InputBlock title="Eng & PM Site Visits">
+            <NumField
+              label="Engineering trips to site"
+              value={inputs.engTripsToSite}
+              onChange={(n) => labor.updateInputs({ engTripsToSite: Math.round(n) })}
+            />
+            <NumField
+              label="Engineering days on-site"
+              value={inputs.engDaysOnSite ?? 0}
+              onChange={(n) => labor.updateInputs({ engDaysOnSite: n })}
+            />
+            <NumField
+              label="PM trips to site"
+              value={inputs.pmTripsToSite}
+              onChange={(n) => labor.updateInputs({ pmTripsToSite: Math.round(n) })}
+            />
+            <NumField
+              label="PM days on-site"
+              value={inputs.pmDaysOnSite ?? 0}
+              onChange={(n) => labor.updateInputs({ pmDaysOnSite: n })}
+            />
+          </InputBlock>
+
+          <InputBlock title="Travel Calculator">
+            {(
+              [
+                ["lead", "Leads"],
+                ["tech", "Technicians"],
+                ["fe", "Field engineers"],
+                ["pm", "PMs"],
+                ["eng", "Engineers"],
+              ] as [keyof CrewRoster, string][]
+            ).map(([role, label]) => (
+              <div key={role} className="flex items-center justify-between py-0.5">
+                <span className="text-xs text-muted-foreground">{label}</span>
+                <Stepper
+                  label={`${label} traveling`}
+                  value={travel.roster[role]}
+                  min={0}
+                  step={1}
+                  onChange={(n) => labor.updateTravel({ roster: { ...travel.roster, [role]: n } })}
+                />
+              </div>
+            ))}
+            <NumField
+              label="Trips"
+              value={travel.tripCount}
+              onChange={(n) => labor.updateTravel({ tripCount: Math.max(0, Math.round(n)) })}
+            />
+            <NumField
+              label="On-site days per trip"
+              value={travel.onSiteDaysPerTrip}
+              onChange={(n) => labor.updateTravel({ onSiteDaysPerTrip: Math.max(0, n) })}
+            />
+            <div className="flex items-center justify-between gap-3 py-0.5">
+              <span className="text-xs text-muted-foreground">Mode</span>
+              <div className="inline-flex rounded-md border border-border p-0.5">
+                {(["drive", "fly"] as TravelMode[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => labor.updateTravel({ mode: m })}
+                    className={cn(
+                      "rounded px-2 py-0.5 text-[11px] capitalize transition-colors",
+                      travel.mode === m
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Derived plan — lands in the expense lines below as autos */}
+            <div className="mt-1.5 space-y-0.5 border-t border-border/40 pt-1.5 text-[11px]">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Days away / trip / person</span>
+                <span className="font-mono tabular">{plan.totalDaysAwayPerTrip}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Hotel nights (total)</span>
+                <span className="font-mono tabular">{plan.totals.hotelNights}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Per diem days (total)</span>
+                <span className="font-mono tabular">{plan.totals.perDiemDays}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Rentals ({plan.rentalCarsPerTrip}/trip) car-days</span>
+                <span className="font-mono tabular">{plan.totals.rentalCarDays}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Airfare round trips</span>
+                <span className="font-mono tabular">{plan.totals.airfareRoundTrips}</span>
+              </div>
+              {travel.mode === "fly" && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Fly travel labor</span>
+                  <span className="font-mono tabular">{plan.totals.travelLaborHours} h</span>
+                </div>
+              )}
+            </div>
+          </InputBlock>
+
+          <InputBlock title="Field Lead Pre-Install">
+            <div className="flex items-center justify-between py-0.5 text-xs">
+              <span className="text-muted-foreground">Project is</span>
+              <span className="font-mono tabular">{d.isProjectLocal ? "local" : "remote"}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Site visit trips (auto)</span>
+              <OverrideValue
+                adj={d.fieldLeadSiteVisitTrips}
+                onSet={setOv("fieldLeadSiteVisitTrips")}
+                unit="trips"
+                label="lead site visit trips"
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Site visit days (auto)</span>
+              <OverrideValue
+                adj={d.fieldLeadSiteVisitDays}
+                onSet={setOv("fieldLeadSiteVisitDays")}
+                unit="days"
+                label="lead site visit days"
+              />
+            </div>
+          </InputBlock>
+        </div>
+      </DetailsSection>
+
+      {/* ---- 2. Project Labor & Expenses — line items, hours-first ---- */}
+      <DetailsSection title="Project Labor & Expenses" right={<CostRefToggle labor={labor} />}>
+        <div className="space-y-3">
+          {LINE_GROUPS.map((group) => {
+            const lines = group.keys
+              .map((k) => lineMap.get(k))
+              .filter((l): l is NonNullable<typeof l> => l !== undefined);
+            const subtotal = lines.reduce((s, l) => s + l.hours.value, 0);
+            const subCost = lines.reduce((s, l) => s + l.extCost, 0);
+            return (
+              <div key={group.title} className="border-t border-border/60 pt-2 first:border-t-0 first:pt-0">
+                <div className="flex items-baseline justify-between">
+                  <span className="eyebrow">{group.title}</span>
+                  <span className="font-mono text-[11px] tabular text-muted-foreground">
+                    {fmtHrs(subtotal)} h{showCost && <span> · {fmtUsd(subCost)}</span>}
+                  </span>
+                </div>
+                <div className="mt-1.5 space-y-0.5">
+                  {lines.map((l) => {
+                    const zero = l.hours.value === 0 && l.hours.override === undefined;
+                    return (
+                      <div
+                        key={l.key}
+                        className={cn(
+                          "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 text-xs",
+                          zero && "opacity-40",
+                        )}
+                      >
+                        <span className="truncate text-muted-foreground">{l.description}</span>
+                        <OverrideValue adj={l.hours} onSet={setOv(l.key)} label={l.description} />
+                        {showCost && (
+                          <span className="w-20 text-right font-mono tabular text-muted-foreground">
+                            {fmtUsd(l.extCost)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Expenses — van mileage + the travel plan's rollups (all overridable) */}
+          <div className="border-t border-border/60 pt-2">
+            <div className="flex items-baseline justify-between">
+              <span className="eyebrow">Travel & Site Expenses</span>
+              <span className="font-mono text-[11px] tabular text-muted-foreground">
+                {showCost && fmtUsd(estimate.totals.expenseCost)}
+              </span>
+            </div>
+            <div className="mt-1.5 space-y-0.5">
+              {estimate.expenses.map((e) => {
+                const zero = e.qty.value === 0 && e.qty.override === undefined;
+                return (
+                  <div
+                    key={e.key}
+                    className={cn(
+                      "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 text-xs",
+                      zero && "opacity-40",
+                    )}
+                  >
+                    <span className="truncate text-muted-foreground">{e.description}</span>
+                    <OverrideValue
+                      adj={e.qty}
+                      onSet={setOv(e.key as OverrideKey)}
+                      unit={e.key === "onSiteVanMiles" ? "mi" : ""}
+                      label={e.description}
+                    />
+                    {showCost && (
+                      <span className="w-20 text-right font-mono tabular text-muted-foreground">
+                        {fmtUsd(e.extCost)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </DetailsSection>
+
+      {/* ---- 3. Rollups — the workbook's right-side tables ---- */}
+      <DetailsSection title="Summary" right={<CostRefToggle labor={labor} />}>
+        <div className="max-w-md space-y-0.5 text-xs">
+          {(["PM", "Engineering", "Field", "Expenses"] as const).map((fam) => (
+            <div key={fam} className="grid grid-cols-[1fr_auto_auto] items-baseline gap-3">
+              <span className="text-muted-foreground">{fam}</span>
+              <span className="font-mono tabular">
+                {fam === "Expenses" ? "—" : `${fmtHrs(families[fam].hours)} h`}
+              </span>
+              {showCost && (
+                <span className="w-24 text-right font-mono tabular text-muted-foreground">
+                  {fmtUsd(families[fam].cost)}
+                </span>
+              )}
+            </div>
+          ))}
+          <div className="mt-1 grid grid-cols-[1fr_auto_auto] items-baseline gap-3 border-t border-border/60 pt-1 font-medium">
+            <span>Total</span>
+            <span className="font-mono tabular">{fmtHrs(estimate.totals.laborHours)} h</span>
+            {showCost && (
+              <span className="w-24 text-right font-mono tabular text-primary">
+                {fmtUsd(estimate.totals.grandTotal)}
+              </span>
+            )}
+          </div>
+        </div>
+      </DetailsSection>
+
+      <DetailsSection title="Detailed Summary" defaultOpen={false} right={<CostRefToggle labor={labor} />}>
+        <div className="max-w-xl space-y-0.5 text-xs">
+          {RATES.map((r) => {
+            const entry = rollupMap.get(r.id);
+            const hours = entry?.hours ?? 0;
+            const cost = entry?.extCost ?? 0;
+            return (
+              <div
+                key={r.id}
+                className={cn(
+                  "grid grid-cols-[70px_minmax(0,1fr)_auto_auto] items-baseline gap-3",
+                  hours === 0 && cost === 0 && "opacity-40",
+                )}
+              >
+                <span className="font-mono text-[10px] text-muted-foreground/70">{r.id}</span>
+                <span className="truncate text-muted-foreground">{r.description}</span>
+                <span className="font-mono tabular">
+                  {r.id === "EXPENSES" ? "—" : fmtHrs(hours)}
+                </span>
+                {showCost && (
+                  <span className="w-24 text-right font-mono tabular text-muted-foreground">
+                    {fmtUsd(cost)}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </DetailsSection>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Labor settings popover (LT.2d) — SMA toggle + service rate editing
+// ---------------------------------------------------------------------------
+
+const SERVICE_RATE_FIELDS: { key: keyof ServiceRates; label: string }[] = [
   { key: "installPerDay", label: "Install, per day" },
   { key: "designPerHr", label: "Design, per hr" },
   { key: "cadPerHr", label: "CAD, per hr" },
@@ -1452,14 +2027,46 @@ function LaborSettings({ labor }: { labor: LaborModel }) {
             </button>
           </div>
           <div className="mt-3 border-t border-border/60 pt-2">
-            <span className="eyebrow">EOS Rates ($)</span>
+            <span className="eyebrow">Travel Handling</span>
+            <div className="mt-1 space-y-0.5">
+              {TRAVEL_MODES.map((m) => (
+                <label
+                  key={m.key}
+                  className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs hover:bg-accent"
+                >
+                  <input
+                    type="radio"
+                    name="travel-mode"
+                    checked={labor.travelMode === m.key}
+                    onChange={() => labor.setTravelMode(m.key)}
+                    className="h-3 w-3 accent-[hsl(var(--primary))]"
+                  />
+                  <span className="flex-1">{m.label}</span>
+                  <span className="text-[10px] text-muted-foreground">{m.hint}</span>
+                </label>
+              ))}
+            </div>
+            {labor.travelMode === "column" && (
+              <label className="mt-1.5 flex cursor-pointer items-center justify-between gap-3 px-1 text-xs">
+                <span className="text-muted-foreground">Include travel column in copy</span>
+                <input
+                  type="checkbox"
+                  checked={labor.includeTravelInCopy}
+                  onChange={(e) => labor.setIncludeTravelInCopy(e.target.checked)}
+                  className="h-3 w-3 accent-[hsl(var(--primary))]"
+                />
+              </label>
+            )}
+          </div>
+          <div className="mt-3 border-t border-border/60 pt-2">
+            <span className="eyebrow">Service Rates ($)</span>
             <div className="mt-1 space-y-1">
-              {EOS_RATE_FIELDS.map((f) => (
+              {SERVICE_RATE_FIELDS.map((f) => (
                 <NumField
                   key={f.key}
                   label={f.label}
-                  value={labor.eosRates[f.key]}
-                  onChange={(n) => labor.setEosRate(f.key, n)}
+                  value={labor.serviceRates[f.key]}
+                  onChange={(n) => labor.setServiceRate(f.key, n)}
                 />
               ))}
             </div>
@@ -1472,11 +2079,12 @@ function LaborSettings({ labor }: { labor: LaborModel }) {
 
 // ---------------------------------------------------------------------------
 // The view — Estimate (three zones: rooms | catalog | live summary), the
-// EOS Services sheet, or the Full Sheet grid; all read the same labor model.
+// Services sheet, or the Full Sheet grid; all read the same labor model.
 // ---------------------------------------------------------------------------
 
 const VIEW_MODES: { key: LaborViewMode; label: string }[] = [
   { key: "services", label: "Services" },
+  { key: "details", label: "Details" },
   { key: "estimate", label: "Estimate" },
 ];
 
@@ -1505,6 +2113,8 @@ export function LaborView({ labor }: { labor: LaborModel }) {
       </div>
       {labor.viewMode === "services" ? (
         <ServicesSheet labor={labor} />
+      ) : labor.viewMode === "details" ? (
+        <DetailsView labor={labor} />
       ) : (
         <EstimateZones labor={labor} />
       )}

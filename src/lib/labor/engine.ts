@@ -10,6 +10,7 @@
 
 import catalogJson from './catalog.json';
 import ratesJson from './rates.json';
+import { computeTravelPlan, type TravelInputs } from './travel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -91,9 +92,12 @@ export type LaborLineKey =
   | 'leadOnSiteTravel' | 'installOnSiteTravel'
   | 'feOnSiteCommissioning' | 'feOnSiteCommissioningPrem' | 'feOnSiteTravel'
   | 'training' | 'trainingPrem' | 'trainingTravel'
-  | 'eventSupport' | 'eventSupportPrem' | 'eventSupportTravel';
+  | 'eventSupport' | 'eventSupportPrem' | 'eventSupportTravel'
+  | 'flyTravelLead' | 'flyTravelTech' | 'flyTravelFe' | 'flyTravelPm' | 'flyTravelEng';
 
-export type DerivedKey = 'fieldLeadSiteVisitTrips' | 'fieldLeadSiteVisitDays' | 'onSiteVanMiles';
+export type DerivedKey =
+  | 'fieldLeadSiteVisitTrips' | 'fieldLeadSiteVisitDays' | 'onSiteVanMiles'
+  | 'airfareRoundTrips' | 'rentalCarDays' | 'perDiemDays' | 'hotelNights';
 
 export interface ProjectInputs {
   numDrawings: number;
@@ -121,6 +125,8 @@ export interface ProjectInputs {
   subQuotedInHouseBuild?: boolean;
   subQuotedOnSiteBuild?: boolean;
   subQuotedFieldEng?: boolean;
+  /** Crew-based travel plan (LT.2i); omitted => all travel autos are 0. */
+  travel?: TravelInputs;
   /** The workbook's J-column manual adjustments. */
   overrides?: Partial<Record<LaborLineKey | DerivedKey, number>>;
 }
@@ -397,6 +403,17 @@ export function computeProjectEstimate(
   line('eventSupportPrem', 'G184', 'FE_EVENT_PREM', 'Event Support (premium)', 0);
   line('eventSupportTravel', 'G185', 'FE_EVENT', 'Event Support - Travel Time', 0);
 
+  // --- Fly-mode crew travel labor (LT.2i; no workbook cell) ---
+  // Drive mode keeps the hourly travel-time lines above; fly mode books
+  // whole travel days per role instead. Auto 0 when driving or no plan.
+  const travelPlan = computeTravelPlan(inputs.travel);
+  const flyHrs = travelPlan.totals.travelLaborHoursByRole;
+  line('flyTravelLead', '—', 'LEAD_OS', 'Air Travel Days - Lead', flyHrs.lead);
+  line('flyTravelTech', '—', 'INSTALL_OS', 'Air Travel Days - Technicians', flyHrs.tech);
+  line('flyTravelFe', '—', 'FE_OS', 'Air Travel Days - Field Engineer', flyHrs.fe);
+  line('flyTravelPm', '—', 'PM', 'Air Travel Days - PM', flyHrs.pm);
+  line('flyTravelEng', '—', 'ENG', 'Air Travel Days - Engineering', flyHrs.eng);
+
   // --- Project Management (G52) — sums the field/training/event hours plus
   //     G46:G50, G69:G72, G79:G80, G85:G86, G143:G149, then *0.1 + PM days*8,
   //     CEILING to 4. Computed after its inputs so post-adjust values flow in.
@@ -412,7 +429,18 @@ export function computeProjectEstimate(
   line('pc', 'G53', 'PC', 'Project Coordinator', excelFloor(pm.hours.value * 0.125, 1));
   line('pmTravel', 'G54', 'PM', 'PM - Travel Time', excelCeiling(inputs.pmTripsToSite * T * 2, 1));
 
-  // --- Expenses (only the van-miles line auto-populates; G113) ---
+  // --- Expenses: van miles (G113) + the travel plan's rollups (LT.2i).
+  //     Every qty is the plan's AUTO value and stays overridable.
+  const expenseLine = (
+    key: DerivedKey,
+    cell: string,
+    description: string,
+    auto: number,
+    unitCost: number,
+  ): ExpenseLine => {
+    const qty = adjusted(auto, ov[key]);
+    return { key, cell, description, qty, unitCost, extCost: qty.value * unitCost };
+  };
   const expenses: ExpenseLine[] = [
     {
       key: 'onSiteVanMiles',
@@ -422,6 +450,14 @@ export function computeProjectEstimate(
       unitCost: expenseConstants.vanPerMile,
       extCost: vanMiles.value * expenseConstants.vanPerMile,
     },
+    expenseLine('airfareRoundTrips', '—', 'Airfare (round trips)',
+      travelPlan.totals.airfareRoundTrips, expenseConstants.airfarePerRoundTrip),
+    expenseLine('rentalCarDays', '—', 'Rental Car (days)',
+      travelPlan.totals.rentalCarDays, expenseConstants.carRentalPerDay),
+    expenseLine('perDiemDays', '—', 'Per Diem (days)',
+      travelPlan.totals.perDiemDays, expenseConstants.perDiemPerDay),
+    expenseLine('hotelNights', '—', 'Lodging (nights)',
+      travelPlan.totals.hotelNights, expenseConstants.lodgingPerNight),
   ];
 
   // --- Rollup per rate id + grand totals ---

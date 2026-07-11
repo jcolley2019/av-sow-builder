@@ -1,4 +1,4 @@
-// EOS Services view (LT.2e) — pure presentation mapping of the engine's
+// Services view (LT.2e) — pure presentation mapping of the engine's
 // output into the D-Tools Services-tab shape: one row per room, columns
 // N-U (Install Days, Design, CAD, Programming, Commissioning, PM, Weekly
 // Calls, Site Survey). No new estimating math lives here: the only
@@ -15,7 +15,7 @@ import ratesJson from './rates.json';
 import type { Adjusted, LaborLineKey, ProjectEstimate } from './engine';
 import { excelCeiling } from './engine';
 
-export interface EosRates {
+export interface ServiceRates {
   installPerDay: number;
   designPerHr: number;
   cadPerHr: number;
@@ -24,13 +24,13 @@ export interface EosRates {
   pmPerHr: number;
 }
 
-export const EOS_RATES: EosRates = {
-  installPerDay: ratesJson.eosRates.installPerDay,
-  designPerHr: ratesJson.eosRates.designPerHr,
-  cadPerHr: ratesJson.eosRates.cadPerHr,
-  programmingPerHr: ratesJson.eosRates.programmingPerHr,
-  commissioningPerHr: ratesJson.eosRates.commissioningPerHr,
-  pmPerHr: ratesJson.eosRates.pmPerHr,
+export const SERVICE_RATES: ServiceRates = {
+  installPerDay: ratesJson.serviceRates.installPerDay,
+  designPerHr: ratesJson.serviceRates.designPerHr,
+  cadPerHr: ratesJson.serviceRates.cadPerHr,
+  programmingPerHr: ratesJson.serviceRates.programmingPerHr,
+  commissioningPerHr: ratesJson.serviceRates.commissioningPerHr,
+  pmPerHr: ratesJson.serviceRates.pmPerHr,
 };
 
 /** Services-tab columns N..U, in paste order. */
@@ -45,8 +45,10 @@ export const SERVICE_COLS = [
   'siteSurvey',
 ] as const;
 export type ServiceColKey = (typeof SERVICE_COLS)[number];
+/** Optional 9th column when the travel-handling mode is "column". */
+export type ServiceCol = ServiceColKey | 'travelHrs';
 
-export const SERVICE_COL_LABELS: Record<ServiceColKey, string> = {
+export const SERVICE_COL_LABELS: Record<ServiceCol, string> = {
   installDays: 'Install Days',
   designHrs: 'Design Hrs',
   cadHrs: 'CAD Hrs',
@@ -55,7 +57,19 @@ export const SERVICE_COL_LABELS: Record<ServiceColKey, string> = {
   pmHrs: 'PM Hrs',
   weeklyCalls: 'Weekly Calls',
   siteSurvey: 'Site Survey',
+  travelHrs: 'Travel Hrs',
 };
+
+/** How travel labor + expenses land in Services (LT.2i). */
+export type ServicesTravelMode = 'exclude' | 'column' | 'average';
+
+/** Engine lines that count as travel labor (drive hourly + fly day lines). */
+export const TRAVEL_LINE_KEYS: LaborLineKey[] = [
+  'engTravel', 'pmTravel', 'leadSiteVisitTravel',
+  'leadOnSiteTravel', 'installOnSiteTravel', 'feOnSiteTravel',
+  'trainingTravel', 'eventSupportTravel',
+  'flyTravelLead', 'flyTravelTech', 'flyTravelFe', 'flyTravelPm', 'flyTravelEng',
+];
 
 /** Which engine lines feed each allocated role bucket. */
 const ROLE_LINES: Record<
@@ -85,24 +99,34 @@ export interface ServicesRoomInput {
 export interface ServiceRow {
   roomId: string;
   roomName: string;
-  cells: Record<ServiceColKey, Adjusted>;
+  cells: Record<ServiceColKey, Adjusted> & Partial<Record<'travelHrs', Adjusted>>;
 }
 
 export interface ServicesTable {
+  /** Render/copy order; includes 'travelHrs' only in "column" mode. */
+  columns: ServiceCol[];
   rows: ServiceRow[];
   /** Column sums of post-override values. */
-  totals: Record<ServiceColKey, number>;
+  totals: Record<ServiceColKey, number> & Partial<Record<'travelHrs', number>>;
   /** Ext. dollars per priced role (qty columns carry none). */
   dollars: Record<
     'installDays' | 'designHrs' | 'cadHrs' | 'programmingHrs' | 'commissioningHrs' | 'pmHrs',
     number
-  >;
+  > &
+    Partial<Record<'travelHrs', number>>;
+  /** Travel rollup for the reference block, whatever the mode. */
+  travel: {
+    mode: ServicesTravelMode;
+    laborHours: number;
+    laborCost: number;
+    expenseCost: number;
+  };
   grandTotal: number;
 }
 
 export type ServiceOverrides = Partial<Record<string, number>>;
 
-export function serviceOverrideKey(roomId: string, col: ServiceColKey): string {
+export function serviceOverrideKey(roomId: string, col: ServiceCol): string {
   return `${roomId}.${col}`;
 }
 
@@ -134,7 +158,8 @@ export function computeServicesTable(
   rooms: ServicesRoomInput[],
   estimate: ProjectEstimate,
   overrides: ServiceOverrides = {},
-  rates: EosRates = EOS_RATES,
+  rates: ServiceRates = SERVICE_RATES,
+  travelMode: ServicesTravelMode = 'exclude',
 ): ServicesTable {
   const lineHours = new Map(estimate.lines.map((l) => [l.key, l.hours.value]));
   const roleTotal = (keys: LaborLineKey[]) =>
@@ -146,36 +171,52 @@ export function computeServicesTable(
     allocations[col] = allocate(roleTotal(keys), hours);
   }
 
+  // Travel rollups (LT.2i): labor from the travel line keys (drive hourly
+  // lines + fly day lines), expenses from ALL expense lines. Allocated
+  // across rooms like every other role.
+  const travelLaborHours = roleTotal(TRAVEL_LINE_KEYS);
+  const travelLaborCost = estimate.lines
+    .filter((l) => TRAVEL_LINE_KEYS.includes(l.key))
+    .reduce((s, l) => s + l.extCost, 0);
+  const travelExpenseCost = estimate.totals.expenseCost;
+  const travelAlloc = allocate(travelLaborHours, hours);
+
   const rows: ServiceRow[] = rooms.map((room, i) => {
-    const cell = (col: ServiceColKey, auto: number): Adjusted => {
+    const cell = (col: ServiceCol, auto: number): Adjusted => {
       const override = overrides[serviceOverrideKey(room.id, col)];
       return { auto, override, value: override ?? auto };
     };
-    return {
-      roomId: room.id,
-      roomName: room.name,
-      cells: {
-        // Install Days = room hours / 8, ROUNDUP to nearest 0.5.
-        installDays: cell('installDays', excelCeiling(room.hours / 8, 0.5)),
-        designHrs: cell('designHrs', allocations.designHrs![i]),
-        cadHrs: cell('cadHrs', allocations.cadHrs![i]),
-        programmingHrs: cell('programmingHrs', allocations.programmingHrs![i]),
-        commissioningHrs: cell('commissioningHrs', allocations.commissioningHrs![i]),
-        pmHrs: cell('pmHrs', allocations.pmHrs![i]),
-        weeklyCalls: cell('weeklyCalls', 0),
-        siteSurvey: cell('siteSurvey', 0),
-      },
+    // "average" folds each room's travel share into its install basis;
+    // Install Days stay ROUNDUP to nearest 0.5 either way.
+    const installBasis =
+      room.hours + (travelMode === 'average' ? travelAlloc[i] : 0);
+    const cells: ServiceRow['cells'] = {
+      installDays: cell('installDays', excelCeiling(installBasis / 8, 0.5)),
+      designHrs: cell('designHrs', allocations.designHrs![i]),
+      cadHrs: cell('cadHrs', allocations.cadHrs![i]),
+      programmingHrs: cell('programmingHrs', allocations.programmingHrs![i]),
+      commissioningHrs: cell('commissioningHrs', allocations.commissioningHrs![i]),
+      pmHrs: cell('pmHrs', allocations.pmHrs![i]),
+      weeklyCalls: cell('weeklyCalls', 0),
+      siteSurvey: cell('siteSurvey', 0),
     };
+    if (travelMode === 'column') {
+      cells.travelHrs = cell('travelHrs', travelAlloc[i]);
+    }
+    return { roomId: room.id, roomName: room.name, cells };
   });
 
-  const totals = Object.fromEntries(
-    SERVICE_COLS.map((col) => [
-      col,
-      round2(rows.reduce((s, r) => s + r.cells[col].value, 0)),
-    ]),
-  ) as Record<ServiceColKey, number>;
+  const columns: ServiceCol[] =
+    travelMode === 'column' ? [...SERVICE_COLS, 'travelHrs'] : [...SERVICE_COLS];
 
-  const dollars = {
+  const totals = Object.fromEntries(
+    columns.map((col) => [
+      col,
+      round2(rows.reduce((s, r) => s + (r.cells[col]?.value ?? 0), 0)),
+    ]),
+  ) as ServicesTable['totals'];
+
+  const dollars: ServicesTable['dollars'] = {
     installDays: totals.installDays * rates.installPerDay,
     designHrs: totals.designHrs * rates.designPerHr,
     cadHrs: totals.cadHrs * rates.cadPerHr,
@@ -183,17 +224,48 @@ export function computeServicesTable(
     commissioningHrs: totals.commissioningHrs * rates.commissioningPerHr,
     pmHrs: totals.pmHrs * rates.pmPerHr,
   };
-  const grandTotal = Object.values(dollars).reduce((s, d) => s + d, 0);
+  // Travel column is billed at the install day rate (hours/8 x $day).
+  if (travelMode === 'column') {
+    dollars.travelHrs = ((totals.travelHrs ?? 0) / 8) * rates.installPerDay;
+  }
 
-  return { rows, totals, dollars, grandTotal };
+  const roleDollars =
+    dollars.installDays + dollars.designHrs + dollars.cadHrs +
+    dollars.programmingHrs + dollars.commissioningHrs + dollars.pmHrs;
+  const grandTotal =
+    travelMode === 'exclude'
+      ? roleDollars
+      : travelMode === 'column'
+        ? roleDollars + (dollars.travelHrs ?? 0) + travelExpenseCost
+        : roleDollars + travelExpenseCost; // "average": travel labor is inside installDays
+
+  return {
+    columns,
+    rows,
+    totals,
+    dollars,
+    travel: {
+      mode: travelMode,
+      laborHours: travelLaborHours,
+      laborCost: travelLaborCost,
+      expenseCost: travelExpenseCost,
+    },
+    grandTotal,
+  };
 }
 
 /**
  * TSV of the per-room rows in exactly the N..U column order, values only,
- * no headers and no room names — shaped to paste at Services!N4.
+ * no headers and no room names — shaped to paste at Services!N4. The
+ * travel column (mode "column" only) is appended after Site Survey and
+ * ONLY when explicitly requested — the BOM sheet expects the N..U shape.
  */
-export function servicesToTsv(table: ServicesTable): string {
+export function servicesToTsv(table: ServicesTable, includeTravelColumn = false): string {
+  const cols: ServiceCol[] =
+    includeTravelColumn && table.columns.includes('travelHrs')
+      ? [...SERVICE_COLS, 'travelHrs']
+      : [...SERVICE_COLS];
   return table.rows
-    .map((r) => SERVICE_COLS.map((col) => String(r.cells[col].value)).join('\t'))
+    .map((r) => cols.map((col) => String(r.cells[col]?.value ?? 0)).join('\t'))
     .join('\n');
 }

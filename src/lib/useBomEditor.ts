@@ -47,7 +47,7 @@ function removeAt<T>(arr: T[], i: number): T[] {
   return arr.filter((_, idx) => idx !== i);
 }
 
-// SOW.21 — canonical EOS system order. On intake, every location's systems are
+// SOW.21 — canonical house system order. On intake, every location's systems are
 // re-sorted into this fixed sequence regardless of the order extraction returns
 // them, so rooms always read Display, Audio, Video, then the rest. The deterministic
 // guarantee lives here in code (not in an LLM prompt), so it holds for BOTH the

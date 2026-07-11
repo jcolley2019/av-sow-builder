@@ -76,8 +76,8 @@ function loadCompanyDefault(): string {
 
 // True when an extracted customer name is really the integrator's own company
 // (the BOM was prepared by them). Conservative: exact match or a leading-name
-// match after normalizing punctuation/case — so "EOS", "EOS  " and
-// "EOS IT Solutions" match a company of "EOS", but unrelated names don't.
+// match after normalizing punctuation/case — so "Acme", "Acme  " and
+// "Acme AV Solutions" match a company of "Acme", but unrelated names don't.
 function isIntegratorName(customer: string, company: string): boolean {
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const c = norm(customer);

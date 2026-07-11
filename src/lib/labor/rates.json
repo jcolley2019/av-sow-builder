@@ -30,8 +30,8 @@
     { "id": "LEAD_OS_PREM",  "description": "Lead install, on-site, premium, per hr",              "price": 150,   "cost": 105 },
     { "id": "EXPENSES",      "description": "Travel and other expenses",                           "price": 0,     "cost": 0 }
   ],
-  "eosRates": {
-    "_comment": "EOS D-Tools Services-tab sell rates (LT.2e). Editable placeholders like everything else in this file. Install is per DAY; the rest are per HOUR. Weekly Calls and Site Survey are quantity columns priced inside D-Tools, so they carry no rate here.",
+  "serviceRates": {
+    "_comment": "D-Tools Services-tab sell rates (LT.2e). Editable placeholders like everything else in this file. Install is per DAY; the rest are per HOUR. Weekly Calls and Site Survey are quantity columns priced inside D-Tools, so they carry no rate here.",
     "installPerDay": 1160,
     "designPerHr": 125,
     "cadPerHr": 125,

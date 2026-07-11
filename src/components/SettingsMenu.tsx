@@ -62,7 +62,7 @@ export function SettingsMenu({
             <span className="eyebrow mb-1.5 block">Company name (integrator)</span>
             <Input
               value={company}
-              placeholder="e.g. EOS"
+              placeholder="e.g. Acme AV"
               onChange={(e) => onCompanyChange(e.target.value)}
               autoFocus
             />

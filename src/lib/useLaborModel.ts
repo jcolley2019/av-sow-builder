@@ -11,12 +11,14 @@ import {
 } from "./labor/engine";
 import {
   computeServicesTable,
-  EOS_RATES,
+  SERVICE_RATES,
   serviceOverrideKey,
-  type EosRates,
-  type ServiceColKey,
+  type ServiceRates,
+  type ServiceCol,
   type ServiceOverrides,
+  type ServicesTravelMode,
 } from "./labor/servicesView";
+import { EMPTY_TRAVEL, type TravelInputs } from "./labor/travel";
 
 // Labor & Travel state (LT.2) — rooms + ProjectInputs + overrides, held at the
 // App level so switching the top-level view never loses edits. All math runs
@@ -24,7 +26,7 @@ import {
 // only for now (no persistence).
 
 export type OverrideKey = LaborLineKey | DerivedKey;
-export type LaborViewMode = "estimate" | "services";
+export type LaborViewMode = "services" | "details" | "estimate";
 export type CatalogGroupFilter = "av" | "broadcast" | "all";
 export type PhaseKey = "inHouse" | "onSite";
 
@@ -55,6 +57,7 @@ function defaultInputs(): LaborInputs {
     trainings: { sessions: 0, hoursEach: 0 },
     events: { count: 0, daysEach: 0, crewSize: 0 },
     van: { enabled: false, count: 1 },
+    travel: EMPTY_TRAVEL,
   };
 }
 
@@ -70,18 +73,21 @@ export function useLaborModel() {
   const [overrides, setOverrides] = useState<Partial<Record<OverrideKey, number>>>({});
   // Display-only: feeds the Timeline card, never the engine (LT.2c).
   const [targetStartDate, setTargetStartDate] = useState<string | undefined>(undefined);
-  // EOS Services view (LT.2e): mode toggle + per-cell overrides. Services
+  // Services view (LT.2e): mode toggle + per-cell overrides. Services
   // is the daily deliverable, so it's the default view (LT.2f).
   const [viewMode, setViewMode] = useState<LaborViewMode>("services");
   const [serviceOverrides, setServiceOverrides] = useState<ServiceOverrides>({});
   // Dollar reference block under the Services table (LT.2f): collapsed by
   // default; remembered while the app is open (survives project reset).
   const [costRefOpen, setCostRefOpen] = useState(false);
+  // Travel handling (LT.2i): how travel lands in Services + copy shape.
+  const [travelMode, setTravelMode] = useState<ServicesTravelMode>("exclude");
+  const [includeTravelInCopy, setIncludeTravelInCopy] = useState(false);
   // Catalog group filter (LT.2d): null = follow the Project type toggle.
   const [catalogGroupChoice, setCatalogGroupChoice] = useState<CatalogGroupFilter | null>(null);
   // Labor settings (LT.2d): persist across project resets.
   const [showSma, setShowSma] = useState(false);
-  const [eosRates, setEosRates] = useState<EosRates>(EOS_RATES);
+  const [serviceRates, setServiceRates] = useState<ServiceRates>(SERVICE_RATES);
 
   // The whole estimate recomputes on any change — the engine is pure and cheap.
   const estimate = useMemo(
@@ -111,29 +117,42 @@ export function useLaborModel() {
 
   const selectedRoom = rooms.find((r) => r.id === selectedRoomId) ?? rooms[0] ?? null;
 
-  // EOS Services table — pure allocation over the estimate, per room.
+  // Services table — pure allocation over the estimate, per room.
   const servicesTable = useMemo(
     () =>
       computeServicesTable(
         rooms.map((r, i) => ({ id: r.id, name: r.name, hours: estimate.rooms[i]?.hours ?? 0 })),
         estimate,
         serviceOverrides,
-        eosRates,
+        serviceRates,
+        travelMode,
       ),
-    [rooms, estimate, serviceOverrides, eosRates],
+    [rooms, estimate, serviceOverrides, serviceRates, travelMode],
   );
 
   /** Effective picker/full-sheet group: explicit choice, else Project type. */
   const catalogGroup: CatalogGroupFilter =
     catalogGroupChoice ?? (inputs.isBroadcast ? "broadcast" : "av");
 
-  const setEosRate = useCallback((key: keyof EosRates, value: number) => {
-    setEosRates((prev) => ({ ...prev, [key]: Number.isFinite(value) && value >= 0 ? value : 0 }));
+  const setServiceRate = useCallback((key: keyof ServiceRates, value: number) => {
+    setServiceRates((prev) => ({ ...prev, [key]: Number.isFinite(value) && value >= 0 ? value : 0 }));
+  }, []);
+
+  /** Merge-patch the travel calculator inputs (roster patches shallow-merge). */
+  const updateTravel = useCallback((patch: Partial<TravelInputs>) => {
+    setInputs((prev) => ({
+      ...prev,
+      travel: {
+        ...(prev.travel ?? EMPTY_TRAVEL),
+        ...patch,
+        roster: { ...(prev.travel ?? EMPTY_TRAVEL).roster, ...(patch.roster ?? {}) },
+      },
+    }));
   }, []);
 
   /** Services cell "Adjust": null clears back to the allocated auto value. */
   const setServiceOverride = useCallback(
-    (roomId: string, col: ServiceColKey, value: number | null) => {
+    (roomId: string, col: ServiceCol, value: number | null) => {
       setServiceOverrides((prev) => {
         const next = { ...prev };
         const key = serviceOverrideKey(roomId, col);
@@ -220,7 +239,7 @@ export function useLaborModel() {
     setServiceOverrides({});
     setViewMode("services");
     setCatalogGroupChoice(null);
-    // showSma/eosRates are settings, not project data — they survive reset.
+    // showSma/serviceRates are settings, not project data — they survive reset.
   }, []);
 
   return {
@@ -235,14 +254,19 @@ export function useLaborModel() {
     setViewMode,
     costRefOpen,
     setCostRefOpen,
+    travelMode,
+    setTravelMode,
+    includeTravelInCopy,
+    setIncludeTravelInCopy,
+    updateTravel,
     servicesTable,
     setServiceOverride,
     catalogGroup,
     setCatalogGroup: setCatalogGroupChoice,
     showSma,
     setShowSma,
-    eosRates,
-    setEosRate,
+    serviceRates,
+    setServiceRate,
     estimate,
     roomHours,
     addRoom,
