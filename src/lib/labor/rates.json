@@ -1,5 +1,5 @@
 {
-  "_comment": "PLACEHOLDER RATES — editable data, not shipped truth. Extracted from QUOTENUM-LaborEstimate v6.79 'Master Nos & Labor Rates' with ALPHA-prefixed master numbers replaced by neutral ids. The user is expected to tune price/cost per rate. Premium convention: premium cost = 1.5x base cost (the source workbook follows this everywhere except FE roles, where premium cost is 115 vs base 80 — the workbook's literal values are kept). Extended costs in the engine use `cost` (the workbook's Ext. Cost column multiplies hours by COST, column 5 of Table_MasterNos).",
+  "_comment": "PLACEHOLDER RATES — editable data, not shipped truth. Extracted from QUOTENUM-LaborEstimate v6.79 'Master Nos & Labor Rates' with company-prefixed master numbers replaced by neutral ids. The user is expected to tune price/cost per rate. Premium convention: premium cost = 1.5x base cost (the source workbook follows this everywhere except FE roles, where premium cost is 115 vs base 80 — the workbook's literal values are kept). Extended costs in the engine use `cost` (the workbook's Ext. Cost column multiplies hours by COST, column 5 of Table_MasterNos).",
   "rates": [
     { "id": "PM",            "description": "Project Management, per hr",                          "price": 120,   "cost": 84 },
     { "id": "PM_PREM",       "description": "Project Management, premium, per hr",                 "price": 180,   "cost": 126 },
@@ -30,6 +30,15 @@
     { "id": "LEAD_OS_PREM",  "description": "Lead install, on-site, premium, per hr",              "price": 150,   "cost": 105 },
     { "id": "EXPENSES",      "description": "Travel and other expenses",                           "price": 0,     "cost": 0 }
   ],
+  "eosRates": {
+    "_comment": "EOS D-Tools Services-tab sell rates (LT.2e). Editable placeholders like everything else in this file. Install is per DAY; the rest are per HOUR. Weekly Calls and Site Survey are quantity columns priced inside D-Tools, so they carry no rate here.",
+    "installPerDay": 1160,
+    "designPerHr": 125,
+    "cadPerHr": 125,
+    "programmingPerHr": 150,
+    "commissioningPerHr": 155,
+    "pmPerHr": 135
+  },
   "expenseConstants": {
     "_comment": "Editable unit costs for expense line items (workbook H-column literals). The workbook uses 50/day car rental on Training and Event Support sections; all other sections use 75/day.",
     "airfarePerRoundTrip": 600,

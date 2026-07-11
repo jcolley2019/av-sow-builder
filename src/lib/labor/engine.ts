@@ -20,6 +20,8 @@ export interface CatalogItem {
   id: string;
   name: string;
   unitHrs: number;
+  /** Which workbook equipment sheet the item came from. */
+  catalogGroup: 'av' | 'broadcast';
   note?: string;
 }
 
@@ -113,7 +115,7 @@ export interface ProjectInputs {
   events: { count: number; daysEach: number; crewSize: number };
   /** "Is Field Engineer Required?" (L25), default true. */
   isFieldEngRequired?: boolean;
-  /** "Alpha Van" (O28) + "# of Vans" (O29); default disabled. */
+  /** Company van (O28) + "# of Vans" (O29); default disabled. */
   van?: { enabled: boolean; count: number };
   /** Sub-quoted flags (F20/I20/O25), default false ("No"). */
   subQuotedInHouseBuild?: boolean;

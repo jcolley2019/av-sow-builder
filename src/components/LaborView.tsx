@@ -1,10 +1,16 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Filter,
   Minus,
   Pencil,
   Plus,
   RotateCcw,
   Search,
+  Settings,
   Trash2,
   Upload,
   X,
@@ -20,9 +26,22 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
-import { CATALOG, type Adjusted, type LaborLineKey } from "@/lib/labor/engine";
+import { CATALOG, type Adjusted, type CatalogItem, type LaborLineKey } from "@/lib/labor/engine";
 import { formatDateShort, projectTimeline, weeksFromDays } from "@/lib/labor/timeline";
-import type { LaborModel, OverrideKey, PhaseKey } from "@/lib/useLaborModel";
+import {
+  SERVICE_COLS,
+  SERVICE_COL_LABELS,
+  servicesToTsv,
+  type EosRates,
+  type ServiceColKey,
+} from "@/lib/labor/servicesView";
+import type {
+  CatalogGroupFilter,
+  LaborModel,
+  LaborViewMode,
+  OverrideKey,
+  PhaseKey,
+} from "@/lib/useLaborModel";
 
 // ---------------------------------------------------------------------------
 // Formatting
@@ -219,7 +238,7 @@ function OverrideValue({
         aria-label={`Edit ${label} (currently ${fmtHrs(adj.value)} ${unit})`}
         title="Tap to override"
         className={cn(
-          "group inline-flex items-center gap-1 rounded px-1 py-0.5 font-mono text-xs tabular",
+          "group relative inline-flex items-center gap-1 rounded px-1 py-0.5 font-mono text-xs tabular",
           "hover:bg-accent",
           overridden ? "text-primary" : "text-foreground",
         )}
@@ -230,8 +249,9 @@ function OverrideValue({
       >
         {overridden && <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />}
         {fmtHrs(adj.value)}
-        <span className="text-[10px] text-muted-foreground">{unit}</span>
-        <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+        {unit !== "" && <span className="text-[10px] text-muted-foreground">{unit}</span>}
+        {/* Out of layout flow so the number sits exactly centered/right-aligned. */}
+        <Pencil className="absolute -right-3 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
       </button>
     </span>
   );
@@ -335,15 +355,46 @@ function RoomsRail({ labor }: { labor: LaborModel }) {
 // Center — catalog picker
 // ---------------------------------------------------------------------------
 
-const SECTIONS = [...new Set(CATALOG.map((c) => c.section))];
+/** Catalog restricted to the active group ("all" shows both sheets). */
+function groupItems(group: CatalogGroupFilter): CatalogItem[] {
+  return group === "all" ? CATALOG : CATALOG.filter((c) => c.catalogGroup === group);
+}
 
-function CatalogPicker({ labor }: { labor: LaborModel }) {
+const GROUP_CHIPS: { key: CatalogGroupFilter; label: string }[] = [
+  { key: "av", label: "AV" },
+  { key: "broadcast", label: "Broadcast" },
+  { key: "all", label: "All" },
+];
+
+/**
+ * The primary catalog experience (LT.2d-amend): a workbook-style sheet —
+ * every item under blue-tinted section header rows, Excel-like column
+ * entry. The old search picker folded into the sheet's search box +
+ * header filter affordances. Columns: ID | Item | Qty | Unit | Ext.
+ */
+const SHEET_COLS = "grid grid-cols-[80px_minmax(0,1fr)_84px_70px_72px] items-center gap-2";
+
+function CatalogSheet({ labor }: { labor: LaborModel }) {
   const room = labor.selectedRoom;
-  const [query, setQuery] = useState("");
-  const [section, setSection] = useState<string | null>(null);
-  const [browsing, setBrowsing] = useState(false);
+  const pool = useMemo(() => groupItems(labor.catalogGroup), [labor.catalogGroup]);
+  const allSections = useMemo(() => [...new Set(pool.map((c) => c.section))], [pool]);
 
-  const browse = browsing || query.trim() !== "" || section !== null;
+  const [query, setQuery] = useState("");
+  /** null = all sections; otherwise the checked subset. */
+  const [sectionFilter, setSectionFilter] = useState<string[] | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [openFilter, setOpenFilter] = useState<null | "section" | "item">(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!openFilter) return;
+    const onDown = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setOpenFilter(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [openFilter]);
 
   const qty = useMemo(() => {
     const m = new Map<string, number>();
@@ -351,125 +402,289 @@ function CatalogPicker({ labor }: { labor: LaborModel }) {
     return m;
   }, [room]);
 
-  const visible = useMemo(() => {
-    if (!browse) {
-      return CATALOG.filter((c) => qty.has(c.id));
-    }
+  // Visible rows: group chips -> section checklist -> item text filter.
+  // Filtering only hides rows; the room total always counts ALL quantities.
+  const sections = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return CATALOG.filter(
-      (c) =>
-        (section === null || c.section === section) &&
-        (q === "" || c.name.toLowerCase().includes(q) || c.id.includes(q)),
-    );
-  }, [browse, query, section, qty]);
+    const bySec = new Map<string, CatalogItem[]>();
+    for (const item of pool) {
+      if (sectionFilter && !sectionFilter.includes(item.section)) continue;
+      if (q && !(item.name.toLowerCase().includes(q) || item.id.toLowerCase().includes(q))) continue;
+      const list = bySec.get(item.section);
+      if (list) list.push(item);
+      else bySec.set(item.section, [item]);
+    }
+    return [...bySec.entries()];
+  }, [pool, sectionFilter, query]);
+
+  // Flattened order of visible qty inputs — Excel-style column navigation.
+  const navIndex = useMemo(() => {
+    const m = new Map<string, number>();
+    let i = 0;
+    for (const [sec, items] of sections) {
+      if (collapsed[sec]) continue;
+      for (const item of items) m.set(item.id, i++);
+    }
+    return m;
+  }, [sections, collapsed]);
+
+  const focusQty = (idx: number) => {
+    gridRef.current
+      ?.querySelector<HTMLInputElement>(`input[data-qtynav="${idx}"]`)
+      ?.focus();
+  };
+  const onQtyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
+    const down = e.key === "ArrowDown" || e.key === "Enter" || (e.key === "Tab" && !e.shiftKey);
+    const up = e.key === "ArrowUp" || (e.key === "Tab" && e.shiftKey);
+    if (!down && !up) return;
+    e.preventDefault();
+    focusQty(idx + (down ? 1 : -1));
+  };
+
+  const setAllCollapsed = (c: boolean) =>
+    setCollapsed(Object.fromEntries(allSections.map((s) => [s, c])));
+
+  const toggleSectionFilter = (s: string) => {
+    setSectionFilter((prev) => {
+      const cur = prev ?? [...allSections];
+      const next = cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s];
+      return next.length === allSections.length ? null : next;
+    });
+  };
 
   if (!room) {
     return (
       <Card>
         <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Add a room to start picking equipment.
+          Add a room to start entering quantities.
         </CardContent>
       </Card>
     );
   }
 
-  const stopBrowsing = () => {
-    setBrowsing(false);
-    setQuery("");
-    setSection(null);
-  };
+  // Workbook top block: H4 (sheet hour subtotal) × H5 × H6 = H7 — always
+  // over ALL room items, independent of any filtering below.
+  const sheetSubtotal = room.items.reduce((s, i) => {
+    const cat = CATALOG.find((c) => c.id === i.catalogId);
+    return s + i.qty * (cat?.unitHrs ?? 0);
+  }, 0);
+  const roomTotal = labor.roomHours[room.id] ?? 0;
 
   return (
     <Card className="flex min-h-0 flex-col lg:flex-1">
       <CardContent className="flex min-h-0 flex-col gap-3 p-4 lg:flex-1">
-        {/* Search + mode switch */}
+        {/* Sheet header block (workbook top-right) */}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-raised/50 p-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{room.name}</p>
+            <p className="text-[11px] text-muted-foreground">
+              Hour Subtotal × Difficulty × Identical = Total Hours
+            </p>
+          </div>
+          <p className="font-mono text-lg font-semibold tabular">
+            {fmtHrs(sheetSubtotal)} × {room.difficulty.toFixed(1)} × {room.identicalCount} ={" "}
+            <span className="text-primary">{fmtHrs(roomTotal)} h</span>
+          </p>
+          <div className="flex items-center gap-1">
+            <span className="mr-1 text-[10px] text-muted-foreground">Catalog</span>
+            {GROUP_CHIPS.map((g) => (
+              <SectionChip
+                key={g.key}
+                active={labor.catalogGroup === g.key}
+                onClick={() => {
+                  labor.setCatalogGroup(g.key);
+                  setSectionFilter(null);
+                }}
+              >
+                {g.label}
+              </SectionChip>
+            ))}
+          </div>
+        </div>
+
+        {/* Toolbar: search (the old picker, folded in) + outline controls */}
         <div className="flex shrink-0 items-center gap-2">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
-              placeholder="Search the catalog…"
-              aria-label="Search catalog"
+              placeholder="Search / filter items…"
+              aria-label="Search catalog items"
               onChange={(e) => setQuery(e.target.value)}
               className="h-8 pl-8"
             />
+            {query && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
-          {browse ? (
-            <Button variant="ghost" size="sm" onClick={stopBrowsing}>
-              <X className="h-3.5 w-3.5" /> Done
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => setBrowsing(true)}>
-              <Plus className="h-3.5 w-3.5" /> Add items
-            </Button>
+          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setAllCollapsed(false)}>
+            Expand all
+          </Button>
+          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setAllCollapsed(true)}>
+            Collapse all
+          </Button>
+        </div>
+
+        {/* Column header with Excel-style filter affordances */}
+        <div ref={filterRef} className="relative shrink-0">
+          <div className={cn(SHEET_COLS, "border-b border-border pb-1 text-[10px] uppercase tracking-wide text-muted-foreground")}>
+            <span className="flex items-center gap-1">
+              ID
+              <button
+                type="button"
+                aria-label="Filter sections"
+                title="Filter sections"
+                onClick={() => setOpenFilter(openFilter === "section" ? null : "section")}
+                className="hover:text-foreground"
+              >
+                <Filter className={cn("h-3 w-3", sectionFilter && "text-primary")} />
+              </button>
+            </span>
+            <span className="flex items-center gap-1">
+              Equipment Item
+              <button
+                type="button"
+                aria-label="Filter items by text"
+                title="Filter items by text"
+                onClick={() => setOpenFilter(openFilter === "item" ? null : "item")}
+                className="hover:text-foreground"
+              >
+                <Filter className={cn("h-3 w-3", query && "text-primary")} />
+              </button>
+            </span>
+            <span className="text-right">Qty</span>
+            <span className="text-right">Unit Hrs</span>
+            <span className="text-right">Ext Hrs</span>
+          </div>
+
+          {openFilter === "section" && (
+            <div className="absolute left-0 top-6 z-30 max-h-64 w-64 overflow-y-auto rounded-lg border border-border bg-panel p-2 shadow-lg">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="eyebrow">Sections</span>
+                <button
+                  type="button"
+                  className="text-[11px] text-primary hover:underline"
+                  onClick={() => setSectionFilter(null)}
+                >
+                  All
+                </button>
+              </div>
+              {allSections.map((s) => {
+                const checked = sectionFilter === null || sectionFilter.includes(s);
+                return (
+                  <label key={s} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs hover:bg-accent">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSectionFilter(s)}
+                      className="h-3 w-3 accent-[hsl(var(--primary))]"
+                    />
+                    <span className="truncate">{s}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          {openFilter === "item" && (
+            <div className="absolute left-[88px] top-6 z-30 w-64 rounded-lg border border-border bg-panel p-2 shadow-lg">
+              <span className="eyebrow">Filter items</span>
+              <Input
+                autoFocus
+                value={query}
+                placeholder="Contains…"
+                aria-label="Filter items by text"
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === "Escape") setOpenFilter(null);
+                }}
+                className="mt-1 h-7 text-xs"
+              />
+            </div>
           )}
         </div>
 
-        {/* Section chips (browse mode) */}
-        {browse && (
-          <div className="flex shrink-0 flex-wrap gap-1">
-            <SectionChip active={section === null} onClick={() => setSection(null)}>
-              All
-            </SectionChip>
-            {SECTIONS.map((s) => (
-              <SectionChip key={s} active={section === s} onClick={() => setSection(s)}>
-                {s}
-              </SectionChip>
-            ))}
-          </div>
-        )}
-
-        {/* Item list */}
-        <div className="min-h-0 lg:flex-1 lg:overflow-y-auto">
-          {visible.length === 0 ? (
+        {/* The sheet */}
+        <div ref={gridRef} className="min-h-0 lg:flex-1 lg:overflow-y-auto">
+          {sections.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
-              {browse ? (
-                "Nothing matches — try another search or section."
-              ) : (
-                <>
-                  No items in {room.name} yet.
-                  <div className="mt-3">
-                    <Button variant="outline" size="sm" onClick={() => setBrowsing(true)}>
-                      <Plus className="h-3.5 w-3.5" /> Add items
-                    </Button>
-                  </div>
-                </>
-              )}
+              Nothing matches — clear the filters above.
             </div>
           ) : (
-            <ul className="divide-y divide-border/60">
-              {visible.map((item) => {
-                const q = qty.get(item.id) ?? 0;
-                return (
-                  <li key={item.id} className="flex items-center gap-3 py-1.5">
-                    <div className="min-w-0 flex-1">
-                      <p className={cn("truncate text-sm", q === 0 && "text-muted-foreground")}>
-                        {item.name}
-                      </p>
-                      <p className="truncate font-mono text-[10px] text-muted-foreground/70">
-                        {item.id} · {item.section}
-                        {item.note ? ` · ${item.note}` : ""}
-                      </p>
-                    </div>
-                    <span className="w-14 shrink-0 text-right font-mono text-xs tabular text-muted-foreground">
-                      {fmtHrs(item.unitHrs)} h
-                    </span>
-                    <div className="shrink-0">
-                      <Stepper
-                        label={`${item.name} quantity`}
-                        value={q}
-                        min={0}
-                        step={1}
-                        onChange={(n) => labor.setItemQty(room.id, item.id, n)}
-                      />
-                    </div>
-                    <span className="w-14 shrink-0 text-right font-mono text-xs tabular">
-                      {q > 0 ? `${fmtHrs(q * item.unitHrs)} h` : ""}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            sections.map(([sec, items]) => {
+              const secExt = items.reduce((s, it) => s + (qty.get(it.id) ?? 0) * it.unitHrs, 0);
+              const isCollapsed = collapsed[sec] ?? false;
+              return (
+                <div key={sec}>
+                  {/* Blue-tinted section header (workbook style), sticky */}
+                  <div className="sticky top-0 z-10 bg-panel">
+                    <button
+                      type="button"
+                      onClick={() => setCollapsed((p) => ({ ...p, [sec]: !isCollapsed }))}
+                      className="flex w-full items-center gap-1.5 rounded bg-primary/15 px-1.5 py-1.5 text-left"
+                      aria-expanded={!isCollapsed}
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                      )}
+                      <span className="flex-1 text-xs font-medium">{sec}</span>
+                      <span className="font-mono text-[11px] tabular text-muted-foreground">
+                        {secExt > 0 ? `${fmtHrs(secExt)} h` : ""}
+                      </span>
+                    </button>
+                  </div>
+                  {!isCollapsed &&
+                    items.map((item) => {
+                      const q = qty.get(item.id) ?? 0;
+                      const idx = navIndex.get(item.id) ?? -1;
+                      return (
+                        <div
+                          key={item.id}
+                          className={cn(
+                            SHEET_COLS,
+                            "border-b border-border/30 py-0.5 text-xs",
+                            q > 0 ? "bg-orange-300/[0.08]" : "text-muted-foreground",
+                          )}
+                        >
+                          <span className="truncate font-mono text-[10px] text-muted-foreground/70">{item.id}</span>
+                          <span className="truncate" title={item.note ? `${item.name} — ${item.note}` : item.name}>
+                            {item.name}
+                          </span>
+                          <span className="flex justify-end">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={q === 0 ? "" : q}
+                              data-qtynav={idx}
+                              aria-label={`${item.name} quantity`}
+                              onFocus={(e) => e.currentTarget.select()}
+                              onKeyDown={(e) => onQtyKeyDown(e, idx)}
+                              onChange={(e) => {
+                                const n = parseFloat(e.target.value);
+                                labor.setItemQty(room.id, item.id, Number.isFinite(n) && n > 0 ? n : 0);
+                              }}
+                              className="h-6 w-16 px-1 text-right font-mono text-xs tabular"
+                            />
+                          </span>
+                          <span className="text-right font-mono tabular">{fmtHrs(item.unitHrs)}</span>
+                          <span className="text-right font-mono tabular">
+                            {q > 0 ? fmtHrs(q * item.unitHrs) : ""}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              );
+            })
           )}
         </div>
       </CardContent>
@@ -950,12 +1165,356 @@ function SummaryRail({ labor }: { labor: LaborModel }) {
 }
 
 // ---------------------------------------------------------------------------
-// The view — three zones: rooms | catalog | live summary
+// EOS Services sheet (LT.2e) — per-room D-Tools Services-tab table
 // ---------------------------------------------------------------------------
+
+/** Priced roles in column order; qty columns (calls/survey) carry no rate. */
+const eosRateMeta = (
+  r: EosRates,
+): { col: ServiceColKey; key: keyof EosRates; rate: number; per: string }[] => [
+  { col: "installDays", key: "installPerDay", rate: r.installPerDay, per: "day" },
+  { col: "designHrs", key: "designPerHr", rate: r.designPerHr, per: "hr" },
+  { col: "cadHrs", key: "cadPerHr", rate: r.cadPerHr, per: "hr" },
+  { col: "programmingHrs", key: "programmingPerHr", rate: r.programmingPerHr, per: "hr" },
+  { col: "commissioningHrs", key: "commissioningPerHr", rate: r.commissioningPerHr, per: "hr" },
+  { col: "pmHrs", key: "pmPerHr", rate: r.pmPerHr, per: "hr" },
+];
+
+/**
+ * Click-to-edit rate in the cost-reference block. Writes the same eosRates
+ * hook state the settings popover edits — two views over one state.
+ */
+function RateEditor({
+  value,
+  per,
+  label,
+  onCommit,
+}: {
+  value: number;
+  per: string;
+  label: string;
+  onCommit: (n: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const n = parseFloat(draft);
+    if (Number.isFinite(n) && n >= 0) onCommit(n);
+  };
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-0.5 font-mono text-xs tabular text-muted-foreground">
+        × $
+        <Input
+          ref={inputRef}
+          type="number"
+          min={0}
+          value={draft}
+          aria-label={`Edit ${label} rate`}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          className="h-5 w-20 px-1 text-right font-mono text-xs tabular"
+        />
+        /{per}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      title="Tap to edit rate"
+      aria-label={`Edit ${label} rate (currently ${fmtUsd(value)} per ${per})`}
+      onClick={() => {
+        setDraft(String(value));
+        setEditing(true);
+      }}
+      className="rounded px-1 font-mono tabular text-muted-foreground hover:bg-accent hover:text-foreground"
+    >
+      × {fmtUsd(value)}/{per}
+    </button>
+  );
+}
+
+function ServicesSheet({ labor }: { labor: LaborModel }) {
+  const table = labor.servicesTable;
+  const rateMeta = eosRateMeta(labor.eosRates);
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(copyTimer.current), []);
+
+  const copyForDTools = async () => {
+    try {
+      await navigator.clipboard.writeText(servicesToTsv(table));
+      setCopied(true);
+      window.clearTimeout(copyTimer.current);
+      copyTimer.current = window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Clipboard denied (permissions/insecure context) — leave state as-is.
+    }
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-[1500px] px-4 pb-6 pt-3 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+      <Card>
+        <CardContent className="p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="eyebrow">EOS Services · one row per room</span>
+            <span className="flex items-center gap-2">
+              {copied && (
+                <span role="status" className="text-[11px] text-emerald-400">
+                  Copied — paste at Services!N4
+                </span>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-xs"
+                title="paste at Services!N4"
+                onClick={copyForDTools}
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                Copy for Excel
+              </Button>
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[860px] border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className="py-1.5 pr-3 font-normal text-muted-foreground">Room</th>
+                  {SERVICE_COLS.map((col) => (
+                    <th key={col} className="px-2 py-1.5 text-center font-normal text-muted-foreground">
+                      {SERVICE_COL_LABELS[col]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {table.rows.map((row) => (
+                  <tr key={row.roomId} className="border-b border-border/40">
+                    <td className="max-w-[180px] truncate py-1 pr-3">{row.roomName}</td>
+                    {SERVICE_COLS.map((col) => (
+                      <td key={col} className="px-2 py-1 text-center">
+                        <OverrideValue
+                          adj={row.cells[col]}
+                          unit=""
+                          label={`${row.roomName} ${SERVICE_COL_LABELS[col]}`}
+                          onSet={(v) => labor.setServiceOverride(row.roomId, col, v)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="font-mono tabular">
+                <tr className="font-medium">
+                  <td className="py-1.5 pr-3 font-sans text-muted-foreground">Totals</td>
+                  {SERVICE_COLS.map((col) => (
+                    <td key={col} className="px-2 py-1.5 text-center">
+                      {fmtHrs(table.totals[col])}
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {/* Dollars tucked away (LT.2f) — rates live in the company BOM at
+              three charge levels; this block is reference only. */}
+          <div className="mt-3 border-t border-border/60 pt-2">
+            <button
+              type="button"
+              onClick={() => labor.setCostRefOpen(!labor.costRefOpen)}
+              aria-expanded={labor.costRefOpen}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              {labor.costRefOpen ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+              Labor cost (reference)
+            </button>
+            {labor.costRefOpen && (
+              <div className="mt-2 max-w-md space-y-0.5 text-xs">
+                {rateMeta.map((m) => (
+                  <div key={m.col} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3">
+                    <span className="text-muted-foreground">{SERVICE_COL_LABELS[m.col]}</span>
+                    <span className="font-mono tabular text-muted-foreground">
+                      {fmtHrs(table.totals[m.col])}
+                    </span>
+                    <RateEditor
+                      value={m.rate}
+                      per={m.per}
+                      label={SERVICE_COL_LABELS[m.col]}
+                      onCommit={(n) => labor.setEosRate(m.key, n)}
+                    />
+                    <span className="w-24 text-right font-mono tabular">
+                      {fmtUsd(table.dollars[m.col as keyof typeof table.dollars])}
+                    </span>
+                  </div>
+                ))}
+                <div className="mt-1 grid grid-cols-[1fr_auto] items-baseline gap-3 border-t border-border/60 pt-1 font-medium">
+                  <span>Services total</span>
+                  <span className="font-mono tabular text-primary">{fmtUsd(table.grandTotal)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SMA placeholder — gated by the Labor settings toggle; real SMA UI is a later sprint. */}
+          {labor.showSma && (
+            <div className="mt-3 border-t border-border/60 pt-3">
+              <span className="eyebrow">SMA · Service Agreements</span>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Placeholder — SMA line items land in a later sprint.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Labor settings popover (LT.2d) — SMA toggle + EOS rate editing
+// ---------------------------------------------------------------------------
+
+const EOS_RATE_FIELDS: { key: keyof EosRates; label: string }[] = [
+  { key: "installPerDay", label: "Install, per day" },
+  { key: "designPerHr", label: "Design, per hr" },
+  { key: "cadPerHr", label: "CAD, per hr" },
+  { key: "programmingPerHr", label: "Programming, per hr" },
+  { key: "commissioningPerHr", label: "Commissioning, per hr" },
+  { key: "pmPerHr", label: "PM, per hr" },
+];
+
+function LaborSettings({ labor }: { labor: LaborModel }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label="Labor settings"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="h-7 w-7 p-0"
+      >
+        <Settings className="h-4 w-4" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-8 z-30 w-72 rounded-lg border border-border bg-panel p-3 shadow-lg">
+          <span className="eyebrow">Labor Settings</span>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">Show SMA (service agreements)</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={labor.showSma}
+              aria-label="Show SMA (service agreements)"
+              onClick={() => labor.setShowSma(!labor.showSma)}
+              className={cn(
+                "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+                labor.showSma ? "bg-primary" : "bg-raised",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 h-4 w-4 rounded-full bg-foreground transition-all",
+                  labor.showSma ? "left-[18px]" : "left-0.5",
+                )}
+              />
+            </button>
+          </div>
+          <div className="mt-3 border-t border-border/60 pt-2">
+            <span className="eyebrow">EOS Rates ($)</span>
+            <div className="mt-1 space-y-1">
+              {EOS_RATE_FIELDS.map((f) => (
+                <NumField
+                  key={f.key}
+                  label={f.label}
+                  value={labor.eosRates[f.key]}
+                  onChange={(n) => labor.setEosRate(f.key, n)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The view — Estimate (three zones: rooms | catalog | live summary), the
+// EOS Services sheet, or the Full Sheet grid; all read the same labor model.
+// ---------------------------------------------------------------------------
+
+const VIEW_MODES: { key: LaborViewMode; label: string }[] = [
+  { key: "services", label: "Services" },
+  { key: "estimate", label: "Estimate" },
+];
 
 export function LaborView({ labor }: { labor: LaborModel }) {
   return (
-    <div className="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 sm:px-6 lg:h-full lg:grid-cols-[280px_minmax(0,1fr)_400px] lg:grid-rows-1">
+    <div className="flex flex-col lg:h-full">
+      <div className="mx-auto flex w-full max-w-[1500px] items-center justify-between px-4 pt-4 sm:px-6">
+        <div className="inline-flex rounded-md border border-border p-0.5">
+          {VIEW_MODES.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => labor.setViewMode(m.key)}
+              className={cn(
+                "rounded px-3 py-1 text-xs transition-colors",
+                labor.viewMode === m.key
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <LaborSettings labor={labor} />
+      </div>
+      {labor.viewMode === "services" ? (
+        <ServicesSheet labor={labor} />
+      ) : (
+        <EstimateZones labor={labor} />
+      )}
+    </div>
+  );
+}
+
+function EstimateZones({ labor }: { labor: LaborModel }) {
+  return (
+    <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 gap-6 px-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[280px_minmax(0,1fr)_400px] lg:grid-rows-1">
       {/* LEFT — rooms */}
       <section className="flex min-w-0 flex-col lg:min-h-0">
         <div className="flex items-center justify-between pt-6 lg:shrink-0">
@@ -967,7 +1526,7 @@ export function LaborView({ labor }: { labor: LaborModel }) {
         </div>
       </section>
 
-      {/* CENTER — catalog picker for the selected room */}
+      {/* CENTER — workbook-style catalog sheet for the selected room */}
       <section className="flex min-w-0 flex-col lg:min-h-0">
         <div className="flex items-center justify-between pt-6 lg:shrink-0">
           <span className="eyebrow">
@@ -976,7 +1535,7 @@ export function LaborView({ labor }: { labor: LaborModel }) {
           <span className="eyebrow">{labor.selectedRoom?.items.length ?? 0} picked</span>
         </div>
         <div className="pb-6 pt-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
-          <CatalogPicker labor={labor} />
+          <CatalogSheet labor={labor} />
         </div>
       </section>
 
