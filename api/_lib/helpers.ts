@@ -130,6 +130,9 @@ export function responseText(msg: Anthropic.Message): string {
  *
  *  - stop_reason "max_tokens"  → genuine output-cap truncation (a bigger cap is
  *                                the right lever).
+ *  - any other stop_reason,
+ *    unbalanced braces         → the model stalled and stopped mid-structure
+ *                                (runaway/stall, not a length cap) — retry.
  *  - any other stop_reason     → the model believes it finished but emitted
  *                                malformed/oversized JSON (runaway repetition,
  *                                phantom rows, or a bloated input). A bigger cap
@@ -156,9 +159,19 @@ export function parseModelJson(
     );
   }
 
+  const cleaned = extractJsonText(raw, shape);
   try {
-    return JSON.parse(extractJsonText(raw, shape));
+    return JSON.parse(cleaned);
   } catch {
+    if (isUnbalancedJson(cleaned)) {
+      console.warn(`[extract] model output is incomplete JSON — ${sig}`);
+      throw new Error(
+        `The model stopped before completing the JSON (${sig} — the output is ` +
+          `unbalanced and ends mid-structure). This is a model runaway/stall, ` +
+          `not a parsing bug. Retry the generation; if it recurs with a large ` +
+          `style example, the example may be crowding the output — trim it.`,
+      );
+    }
     console.warn(`[extract] model output is not valid JSON — ${sig}`);
     throw new Error(
       `The model returned text that isn't valid JSON (${sig}). It finished on ` +
@@ -168,6 +181,73 @@ export function parseModelJson(
         `cause is the input/prompt, not max_tokens.`,
     );
   }
+}
+
+// Models sometimes emit literal control characters (raw newlines/tabs) inside
+// JSON string values, which JSON.parse rejects. Walk the text tracking whether
+// we're inside a string (respecting backslash escapes); inside a string,
+// replace each char < 0x20 with its JSON escape. Outside strings, untouched.
+function escapeControlCharsInStrings(t: string): string {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (const ch of t) {
+    if (!inString) {
+      if (ch === '"') inString = true;
+      out += ch;
+      continue;
+    }
+    if (escaped) {
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      out += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = false;
+      out += ch;
+      continue;
+    }
+    const code = ch.charCodeAt(0);
+    if (code < 0x20) {
+      if (ch === "\n") out += "\\n";
+      else if (ch === "\r") out += "\\r";
+      else if (ch === "\t") out += "\\t";
+      else out += "\\u" + code.toString(16).padStart(4, "0");
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+// True when braces/brackets don't balance (or a string never closes) — the
+// signature of output that stopped mid-structure rather than merely containing
+// a bad character. Uses the same in-string walk so structural chars inside
+// string values don't count.
+function isUnbalancedJson(t: string): boolean {
+  let inString = false;
+  let escaped = false;
+  let curly = 0;
+  let square = 0;
+  for (const ch of t) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") curly++;
+    else if (ch === "}") curly--;
+    else if (ch === "[") square++;
+    else if (ch === "]") square--;
+  }
+  return curly !== 0 || square !== 0 || inString;
 }
 
 /** Strip ``` fences and isolate the first JSON object/array if surrounded by prose. */
@@ -188,10 +268,25 @@ export function extractJsonText(raw: string, shape: "object" | "array"): string 
   const close = shape === "object" ? "}" : "]";
   const start = t.indexOf(open);
   const end = t.lastIndexOf(close);
+  let candidate = t;
   if (start !== -1 && end !== -1 && end > start) {
-    return t.slice(start, end + 1);
+    candidate = t.slice(start, end + 1);
   }
-  return t;
+
+  // Second chance: literal control chars inside string values are the most
+  // common reason otherwise-complete model JSON fails to parse.
+  try {
+    JSON.parse(candidate);
+  } catch {
+    const sanitized = escapeControlCharsInStrings(candidate);
+    try {
+      JSON.parse(sanitized);
+      return sanitized;
+    } catch {
+      /* still broken — return the unsanitized candidate for diagnostics */
+    }
+  }
+  return candidate;
 }
 
 /** Normalize a possibly-wrapped array (model may return {flags:[...]} etc.). */

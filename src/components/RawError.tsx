@@ -17,8 +17,9 @@ export function RawError({ error, label }: { error: ExtractError; label?: string
             Show raw model output
           </summary>
           <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/60 p-2 text-xs">
-            {raw.slice(0, 4000)}
-            {raw.length > 4000 ? "\n… (truncated)" : ""}
+            {raw.length <= 8000
+              ? raw
+              : `${raw.slice(0, 4000)}\n… [${raw.length - 8000} chars omitted] …\n${raw.slice(-4000)}`}
           </pre>
         </details>
       )}
