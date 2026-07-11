@@ -206,7 +206,14 @@ export const STYLE_MATCH_DIRECTIVE = `
 ---
 STYLE MATCH MODE:
 Match the VOICE, SECTION STRUCTURE, and LEVEL OF DETAIL of the STYLE EXAMPLE provided in the user message. The example governs tone, organization, and depth ONLY.
-ALL hard rules above remain in force regardless of the example: name only BOM equipment with the exact manufacturer/model/quantity, never invent gear, OFE/existing stays (never removed), removals only from bom.removals, no pricing or labor, accessory tiering per house-style section 5.2. If the example conflicts with a hard rule, the HARD RULE WINS. Do NOT copy the example's equipment, rooms, quantities, or specific content — only its writing style and structure.`;
+ALL hard rules above remain in force regardless of the example: name only BOM equipment with the exact manufacturer/model/quantity, never invent gear, OFE/existing stays (never removed), removals only from bom.removals, no pricing or labor, accessory tiering per house-style section 5.2. If the example conflicts with a hard rule, the HARD RULE WINS. Do NOT copy the example's equipment, rooms, quantities, or specific content — only its writing style and structure.
+
+DOCUMENT ORGANIZATION IN STYLE MATCH MODE:
+- The STYLE EXAMPLE governs the document's section taxonomy and arc. Typical arc: opening/basis statement, executive summary or overview, then room-by-room sections, then exceptions/clarifications — follow the EXAMPLE's actual arc, whatever it is.
+- NEVER use the BOM's system/group labels (e.g. "1 - Display & Mount", "3 - Owner Furnished Equipment", numbered prefixes) as section headings. Those reflect the quoting system's organization. Reorganize equipment into the EXAMPLE's section categories.
+- One section per BOM location, carrying the room's name/number from the BOM. Multi-room BOMs get one room section each, all following the same internal organization. Single-room BOMs still follow the example's arc.
+- OFE items appear ONLY within the room's functional sections (or an existing-equipment subsection if the EXAMPLE itself has one). NEVER create a standalone OFE/owner-furnished section, list, or clarification block unless the EXAMPLE contains that exact kind of section.
+- Emit ONLY the section kinds present in the EXAMPLE's arc. Do not add sections the example doesn't have. The complete section list should be reproducible run to run: same example + same BOM = same section plan.`;
 
 // Style analysis: compares an example SOW's WRITING STYLE to the house style.
 export const STYLE_ANALYSIS_SYSTEM =
