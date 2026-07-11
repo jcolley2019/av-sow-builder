@@ -1,8 +1,10 @@
 // Labor & Travel estimating engine — pure TypeScript port of the
-// QUOTENUM-LaborEstimate v6.79 workbook ("Project Details" sheet math).
-// Every formula replicates the workbook exactly, including Excel
-// CEILING/FLOOR/ROUND/ROUNDUP semantics and NETWORKDAYS day counting.
-// Cell references in comments point at the source workbook.
+// QUOTENUM-LaborEstimate v6.79 workbook ("Project Details" sheet math),
+// with Excel CEILING/FLOOR/ROUND/ROUNDUP semantics preserved. Cell
+// references in comments point at the source workbook. Deliberate
+// departure (LT.2c): schedule dates no longer drive any math — the
+// install split comes from a "% In-House" input and phase workdays
+// derive from hours/crew. Estimates work with zero dates entered.
 //
 // No UI, no AI, no I/O — callers pass inputs and get a full estimate back.
 
@@ -70,10 +72,8 @@ export interface RoomEstimate {
   identicalCount?: number;
 }
 
-export interface PhaseSchedule {
-  /** ISO date (yyyy-mm-dd). Missing start or end => 0 work days. */
-  start?: string;
-  end?: string;
+/** Crew assigned to a build phase; workdays derive from hours, not dates. */
+export interface PhaseCrew {
   crewSize: number;
 }
 
@@ -96,8 +96,10 @@ export type DerivedKey = 'fieldLeadSiteVisitTrips' | 'fieldLeadSiteVisitDays' | 
 export interface ProjectInputs {
   numDrawings: number;
   isBroadcast: boolean;
-  inHouse: PhaseSchedule;
-  onSite: PhaseSchedule;
+  /** Install split: share of install hours done in-house, 0-100 (default 25). */
+  percentInHouse?: number;
+  inHouse: PhaseCrew;
+  onSite: PhaseCrew;
   engTripsToSite: number;
   /** "Engineering Days On-Site Total" (F36), default 0. */
   engDaysOnSite?: number;
@@ -142,18 +144,18 @@ export interface ExpenseLine {
 }
 
 export interface DerivedValues {
-  inHouseWorkDays: number;          // F23
-  onSiteWorkDays: number;           // I23
-  inHouseStdHrsAvail: number;       // F25
-  onSiteStdHrsAvail: number;        // I25
-  inHouseInstallTotalHrs: number;   // L22
+  /** ROUNDUP(phaseHours / (crewSize * 8)); 0 when crew is 0. */
+  inHouseWorkDays: number;
+  onSiteWorkDays: number;
+  /** Capacity implied by the derived workdays (days * crew * 8). */
+  inHouseStdHrsAvail: number;
+  onSiteStdHrsAvail: number;
+  inHouseInstallTotalHrs: number;   // L22 (now %-split driven)
   onSiteInstallTotalHrs: number;    // L23
-  inHousePremHrsReq: number;        // D30
-  onSitePremHrsReq: number;         // D31
   trainingHoursTotal: number;       // F30
   eventSupportHoursTotal: number;   // I31
   isProjectLocal: boolean;          // I36
-  percentInHouse: number;           // named PercentInHouse (NaN-safe: 0 when no availability)
+  percentInHouse: number;           // % In-House input as a 0-1 fraction
   fieldLeadSiteVisitTrips: Adjusted; // I37
   fieldLeadSiteVisitDays: Adjusted;  // I38
   vanMiles: Adjusted;               // O30
@@ -222,37 +224,6 @@ export function excelRoundUp0(x: number): number {
   return Math.sign(x) * Math.ceil(Math.abs(x));
 }
 
-/** IFERROR(x, 0) equivalent for NaN/Infinity from divide-by-zero. */
-function ifError0(x: number): number {
-  return Number.isFinite(x) ? x : 0;
-}
-
-/**
- * Excel NETWORKDAYS(start, end): weekdays (Mon-Fri) inclusive of both
- * endpoints; negative when start > end. Missing dates => 0 (the workbook
- * wraps NETWORKDAYS in IFERROR against its "-" placeholder).
- */
-export function networkdays(startISO?: string, endISO?: string): number {
-  if (!startISO || !endISO) return 0;
-  const start = parseIsoDate(startISO);
-  const end = parseIsoDate(endISO);
-  if (start === null || end === null) return 0;
-  const sign = start <= end ? 1 : -1;
-  const [lo, hi] = start <= end ? [start, end] : [end, start];
-  let count = 0;
-  for (let t = lo; t <= hi; t += 86400000) {
-    const dow = new Date(t).getUTCDay();
-    if (dow !== 0 && dow !== 6) count++;
-  }
-  return sign * count;
-}
-
-function parseIsoDate(iso: string): number | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
-  if (!m) return null;
-  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-}
-
 function adjusted(auto: number, override?: number): Adjusted {
   return { auto, override, value: override ?? auto };
 }
@@ -297,19 +268,23 @@ export function computeProjectEstimate(
   const subOS = inputs.subQuotedOnSiteBuild ?? false;
   const subFE = inputs.subQuotedFieldEng ?? false;
 
-  // Schedule-driven availability (F23/I23, F25/I25)
-  const ihDays = networkdays(inputs.inHouse.start, inputs.inHouse.end);
-  const osDays = networkdays(inputs.onSite.start, inputs.onSite.end);
-  const ihAvail = Math.max(0, ihDays * inputs.inHouse.crewSize * 8);
-  const osAvail = Math.max(0, osDays * inputs.onSite.crewSize * 8);
+  // Install split (L22/L23): "% In-House" input replaces the old
+  // date-driven availability ratio; On-Site gets the remainder. Each
+  // total independently CEILINGed to 4 as before.
+  const pctIH = Math.min(1, Math.max(0, (inputs.percentInHouse ?? 25) / 100));
+  const ihTotal = excelCeiling(pctIH * laborSheetTotalHours, 4);
+  const osTotal = excelCeiling((1 - pctIH) * laborSheetTotalHours, 4);
 
-  // Phase hour totals (L22/L23) — each independently CEILINGed to 4
-  const ihTotal = ifError0(excelCeiling((ihAvail / (ihAvail + osAvail)) * laborSheetTotalHours, 4));
-  const osTotal = ifError0(excelCeiling((osAvail / (ihAvail + osAvail)) * laborSheetTotalHours, 4));
-
-  // Premium hours required by schedule (D30/D31)
-  const ihPremReq = Math.max(0, ihTotal - ihAvail);
-  const osPremReq = Math.max(0, osTotal - osAvail);
+  // Derived phase workdays: hours / (crew * 8), rounded up; crew 0 => 0
+  // days. These feed van miles and the travel-time formulas exactly as
+  // the old NETWORKDAYS counts did. StdHrsAvail is the capacity those
+  // derived days imply (always >= the phase total when crew > 0).
+  const ihDays =
+    inputs.inHouse.crewSize > 0 ? excelRoundUp0(ihTotal / (inputs.inHouse.crewSize * 8)) : 0;
+  const osDays =
+    inputs.onSite.crewSize > 0 ? excelRoundUp0(osTotal / (inputs.onSite.crewSize * 8)) : 0;
+  const ihAvail = ihDays * inputs.inHouse.crewSize * 8;
+  const osAvail = osDays * inputs.onSite.crewSize * 8;
 
   const trainingHoursTotal = inputs.trainings.sessions * inputs.trainings.hoursEach; // F30
   const eventHoursTotal =
@@ -340,8 +315,7 @@ export function computeProjectEstimate(
     ov.onSiteVanMiles,
   );
 
-  // PercentInHouse = InHouseStdAvail / (InHouseStdAvail + OnSiteStdAvail)
-  const pctIH = ihAvail / (ihAvail + osAvail); // may be NaN; FE formulas wrap in IFERROR
+  // FE commissioning curve, fed directly by the % In-House input.
   const feCurve = Math.pow(pctIH, 3.3219) - 0.1 * pctIH + 0.1;
 
   const rateCost = new Map(rates.map((r) => [r.id, r.cost]));
@@ -372,16 +346,13 @@ export function computeProjectEstimate(
   const progDspPrem = line('progDspPrem', 'G72', 'PROG_PREM', 'Programming - DSP/Other (premium)', 0);
   const leadIH = line('leadInHouse', 'G75', 'LEAD_IH', 'Lead In-House Install, Rack Build, and Prep',
     !subIH && ihDays !== 0 ? ihTotal / inputs.inHouse.crewSize : 0);
-  line('leadInHousePrem', 'G76', 'LEAD_IH_PREM', 'Lead In-House Install (premium)',
-    !subIH && ihPremReq > 0 ? excelCeiling(ihPremReq / inputs.inHouse.crewSize, 4) : 0);
+  // Premium/overtime lines are override-only now (no schedule to spill past).
+  line('leadInHousePrem', 'G76', 'LEAD_IH_PREM', 'Lead In-House Install (premium)', 0);
   line('installInHouse', 'G77', 'INSTALL_IH', 'In-House Install, Rack Build, and Prep',
     !subIH && inputs.inHouse.crewSize > 1 ? ihTotal - leadIH.hours.value : 0);
-  line('installInHousePrem', 'G78', 'INSTALL_IH_PREM', 'In-House Install (premium)',
-    !subIH && ihPremReq > 0
-      ? excelCeiling((ihPremReq / inputs.inHouse.crewSize) * (inputs.inHouse.crewSize - 1), 4)
-      : 0);
+  line('installInHousePrem', 'G78', 'INSTALL_IH_PREM', 'In-House Install (premium)', 0);
   const feIH = line('feInHouseCommissioning', 'G79', 'FE_IH', 'In-House Testing and Commissioning',
-    ifError0(!subFE ? excelCeiling(isFieldEng ? (numDwg * 3.75) * feCurve : 0, 2) : 0));
+    !subFE && isFieldEng ? excelCeiling((numDwg * 3.75) * feCurve, 2) : 0);
   const feIHPrem = line('feInHouseCommissioningPrem', 'G80', 'FE_IH_PREM', 'In-House Testing and Commissioning (premium)', 0);
 
   // --- On-Site Lead Pre-Install Site Visit (G85..G86) ---
@@ -392,17 +363,11 @@ export function computeProjectEstimate(
   // --- On-Site Installation labor (G102..G107) ---
   const leadOS = line('leadOnSite', 'G102', 'LEAD_OS', 'Lead On-Site Installation',
     !subOS && osDays !== 0 ? osTotal / inputs.onSite.crewSize : 0);
-  line('leadOnSitePrem', 'G103', 'LEAD_OS_PREM', 'Lead On-Site Installation (premium)',
-    !subOS && osPremReq > 0 && inputs.onSite.crewSize > 0
-      ? excelCeiling(osPremReq / inputs.onSite.crewSize, 4)
-      : 0);
+  line('leadOnSitePrem', 'G103', 'LEAD_OS_PREM', 'Lead On-Site Installation (premium)', 0);
   // Workbook quirk preserved: G104's guard checks SubQuotedInHouseBuild, not OnSite.
   line('installOnSite', 'G104', 'INSTALL_OS', 'On-Site Installation',
     !subIH && inputs.onSite.crewSize > 1 ? osTotal - leadOS.hours.value : 0);
-  line('installOnSitePrem', 'G105', 'INSTALL_OS_PREM', 'On-Site Installation (premium)',
-    !subOS && osPremReq > 0
-      ? excelCeiling((osPremReq / inputs.onSite.crewSize) * (inputs.onSite.crewSize - 1), 4)
-      : 0);
+  line('installOnSitePrem', 'G105', 'INSTALL_OS_PREM', 'On-Site Installation (premium)', 0);
   line('leadOnSiteTravel', 'G106', 'LEAD_OS', 'Lead On-Site Install - Travel Time',
     isLocal
       ? excelCeiling(excelRoundUp0(osDays) * T * 2 + fieldLeadTrips.value * T * 2, 1)
@@ -416,7 +381,7 @@ export function computeProjectEstimate(
 
   // --- On-Site Field Engineer labor (G143..G149; unused rows default 0) ---
   const feOS = line('feOnSiteCommissioning', 'G145', 'FE_OS', 'On-Site FE Testing and Commissioning',
-    ifError0(!subFE ? excelCeiling(isFieldEng ? (numDwg * 3.75) * (1 - feCurve) : 0, 2) : 0));
+    !subFE && isFieldEng ? excelCeiling((numDwg * 3.75) * (1 - feCurve), 2) : 0);
   const feOSPrem = line('feOnSiteCommissioningPrem', 'G146', 'FE_OS_PREM', 'On-Site FE Testing and Commissioning (premium)', 0);
   const feOSTravel = line('feOnSiteTravel', 'G149', 'FE_OS', 'On-Site FE - Travel Time', 0);
 
@@ -483,12 +448,10 @@ export function computeProjectEstimate(
       onSiteStdHrsAvail: osAvail,
       inHouseInstallTotalHrs: ihTotal,
       onSiteInstallTotalHrs: osTotal,
-      inHousePremHrsReq: ihPremReq,
-      onSitePremHrsReq: osPremReq,
       trainingHoursTotal,
       eventSupportHoursTotal: eventHoursTotal,
       isProjectLocal: isLocal,
-      percentInHouse: Number.isFinite(pctIH) ? pctIH : 0,
+      percentInHouse: pctIH,
       fieldLeadSiteVisitTrips: fieldLeadTrips,
       fieldLeadSiteVisitDays: fieldLeadDays,
       vanMiles,

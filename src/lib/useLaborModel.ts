@@ -4,7 +4,7 @@ import {
   computeProjectEstimate,
   type DerivedKey,
   type LaborLineKey,
-  type PhaseSchedule,
+  type PhaseCrew,
   type ProjectInputs,
   type RoomEstimate,
   type RoomItem,
@@ -32,6 +32,7 @@ function defaultInputs(): LaborInputs {
   return {
     numDrawings: 0,
     isBroadcast: false,
+    percentInHouse: 25,
     inHouse: { crewSize: 0 },
     onSite: { crewSize: 0 },
     engTripsToSite: 0,
@@ -57,6 +58,8 @@ export function useLaborModel() {
   const [selectedRoomId, setSelectedRoomId] = useState<string>("r1");
   const [inputs, setInputs] = useState<LaborInputs>(defaultInputs);
   const [overrides, setOverrides] = useState<Partial<Record<OverrideKey, number>>>({});
+  // Display-only: feeds the Timeline card, never the engine (LT.2c).
+  const [targetStartDate, setTargetStartDate] = useState<string | undefined>(undefined);
 
   // The whole estimate recomputes on any change — the engine is pure and cheap.
   const estimate = useMemo(
@@ -133,7 +136,7 @@ export function useLaborModel() {
     setInputs((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const updatePhase = useCallback((phase: PhaseKey, patch: Partial<PhaseSchedule>) => {
+  const updatePhase = useCallback((phase: PhaseKey, patch: Partial<PhaseCrew>) => {
     setInputs((prev) => ({ ...prev, [phase]: { ...prev[phase], ...patch } }));
   }, []);
 
@@ -154,6 +157,7 @@ export function useLaborModel() {
     setSelectedRoomId("r1");
     setInputs(defaultInputs());
     setOverrides({});
+    setTargetStartDate(undefined);
   }, []);
 
   return {
@@ -162,6 +166,8 @@ export function useLaborModel() {
     selectedRoomId,
     inputs,
     overrides,
+    targetStartDate,
+    setTargetStartDate,
     estimate,
     roomHours,
     addRoom,

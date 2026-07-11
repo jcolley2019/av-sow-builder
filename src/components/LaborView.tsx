@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 import { CATALOG, type Adjusted, type LaborLineKey } from "@/lib/labor/engine";
+import { formatDateShort, projectTimeline, weeksFromDays } from "@/lib/labor/timeline";
 import type { LaborModel, OverrideKey, PhaseKey } from "@/lib/useLaborModel";
 
 // ---------------------------------------------------------------------------
@@ -564,8 +565,18 @@ function SummaryRail({ labor }: { labor: LaborModel }) {
   const setOv = (key: OverrideKey) => (v: number | null) => labor.setOverride(key, v);
 
   const splits = [
-    { label: "In-House", total: d.inHouseInstallTotalHrs, avail: d.inHouseStdHrsAvail, prem: d.inHousePremHrsReq },
-    { label: "On-Site", total: d.onSiteInstallTotalHrs, avail: d.onSiteStdHrsAvail, prem: d.onSitePremHrsReq },
+    { label: "In-House", total: d.inHouseInstallTotalHrs, avail: d.inHouseStdHrsAvail },
+    { label: "On-Site", total: d.onSiteInstallTotalHrs, avail: d.onSiteStdHrsAvail },
+  ];
+
+  // Display-only Timeline (LT.2c): durations from derived crew-days; the
+  // optional target start date projects Mon-Fri windows, IH then OS.
+  const timeline = labor.targetStartDate
+    ? projectTimeline(labor.targetStartDate, d.inHouseWorkDays, d.onSiteWorkDays)
+    : null;
+  const timelineRows = [
+    { label: "In-House", days: d.inHouseWorkDays, window: timeline?.inHouse ?? null },
+    { label: "On-Site", days: d.onSiteWorkDays, window: timeline?.onSite ?? null },
   ];
 
   return (
@@ -609,41 +620,46 @@ function SummaryRail({ labor }: { labor: LaborModel }) {
 
             <AccordionItem value="schedule">
               <AccordionTrigger className="py-2 text-xs hover:no-underline">
-                <span className="eyebrow">Schedule & Crews</span>
+                <span className="eyebrow">Crews & Split</span>
               </AccordionTrigger>
-              <AccordionContent className="space-y-2.5 pb-3">
-                {PHASES.map(({ key, label }) => {
-                  const phase = inputs[key];
-                  return (
-                    <div key={key} className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">{label}</span>
-                        <span className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-muted-foreground">crew</span>
-                          <Stepper
-                            label={`${label} crew size`}
-                            value={phase.crewSize}
-                            min={0}
-                            step={1}
-                            onChange={(n) => labor.updatePhase(key, { crewSize: n })}
-                          />
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <DateField
-                          label={`${label} start`}
-                          value={phase.start}
-                          onChange={(v) => labor.updatePhase(key, { start: v })}
-                        />
-                        <DateField
-                          label={`${label} end`}
-                          value={phase.end}
-                          onChange={(v) => labor.updatePhase(key, { end: v })}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+              <AccordionContent className="space-y-1 pb-3">
+                {PHASES.map(({ key, label }) => (
+                  <div key={key} className="flex items-center justify-between py-0.5">
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-muted-foreground">crew</span>
+                      <Stepper
+                        label={`${label} crew size`}
+                        value={inputs[key].crewSize}
+                        min={0}
+                        step={1}
+                        onChange={(n) => labor.updatePhase(key, { crewSize: n })}
+                      />
+                    </span>
+                  </div>
+                ))}
+                <NumField
+                  label="% In-House"
+                  value={inputs.percentInHouse ?? 25}
+                  step={5}
+                  suffix="%"
+                  onChange={(n) =>
+                    labor.updateInputs({ percentInHouse: Math.min(100, Math.max(0, n)) })
+                  }
+                />
+                <div className="flex items-center justify-between gap-3 py-0.5">
+                  <span className="text-xs text-muted-foreground">
+                    Target start date{" "}
+                    <span className="text-[10px] opacity-70">(optional)</span>
+                  </span>
+                  <span className="w-32">
+                    <DateField
+                      label="Target start date (optional; display-only timeline)"
+                      value={labor.targetStartDate}
+                      onChange={(v) => labor.setTargetStartDate(v)}
+                    />
+                  </span>
+                </div>
               </AccordionContent>
             </AccordionItem>
 
@@ -790,12 +806,29 @@ function SummaryRail({ labor }: { labor: LaborModel }) {
                     <span className="font-mono tabular">
                       {fmtHrs(s.total)} h
                       <span className="text-muted-foreground"> / {fmtHrs(s.avail)} h std</span>
-                      {s.prem > 0 && (
-                        <span className="text-amber-500"> · {fmtHrs(s.prem)} h prem</span>
-                      )}
                     </span>
                   </div>
                   <CapacityBar total={s.total} avail={s.avail} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Timeline (display-only; the target start date feeds nothing in the engine) */}
+          <div className="border-t border-border/60 pt-3">
+            <span className="eyebrow">Timeline</span>
+            <div className="mt-1.5 space-y-0.5">
+              {timelineRows.map((row) => (
+                <div key={row.label} className="flex items-baseline justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">{row.label}</span>
+                  <span className="font-mono tabular text-right">
+                    ~{row.days} crew-days (~{weeksFromDays(row.days)} wks)
+                    {row.window && (
+                      <span className="text-muted-foreground">
+                        {" "}· {formatDateShort(row.window.startISO)} – {formatDateShort(row.window.endISO)}
+                      </span>
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
