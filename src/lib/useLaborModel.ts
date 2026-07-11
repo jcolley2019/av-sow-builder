@@ -19,6 +19,7 @@ import {
   type ServicesTravelMode,
 } from "./labor/servicesView";
 import { EMPTY_TRAVEL, type TravelInputs } from "./labor/travel";
+import type { LaborMapResult, LaborMapping } from "./api";
 
 // Labor & Travel state (LT.2) — rooms + ProjectInputs + overrides, held at the
 // App level so switching the top-level view never loses edits. All math runs
@@ -36,6 +37,20 @@ export interface UIRoom {
   items: RoomItem[];
   difficulty: number;
   identicalCount: number;
+}
+
+/** Applied automatically when the AI's mapping confidence reaches this. */
+export const MAP_CONFIDENCE_THRESHOLD = 0.7;
+
+/** A BOM line the AI could not confidently place — parked for human review. */
+export interface LaborTrayItem {
+  id: string;
+  roomId: string;
+  roomName: string;
+  bomItem: LaborMapping["bomItem"];
+  /** The AI's guess, when it had one below the confidence bar. */
+  suggestion: { catalogId: string; qty: number; confidence: number } | null;
+  reason: string;
 }
 
 export type LaborInputs = Omit<ProjectInputs, "overrides">;
@@ -88,6 +103,11 @@ export function useLaborModel() {
   // Labor settings (LT.2d): persist across project resets.
   const [showSma, setShowSma] = useState(false);
   const [serviceRates, setServiceRates] = useState<ServiceRates>(SERVICE_RATES);
+  // BOM auto-map review tray (LT.3): lines the AI couldn't place confidently.
+  const traySeq = useRef(1);
+  const [trayItems, setTrayItems] = useState<LaborTrayItem[]>([]);
+  const [trayOpen, setTrayOpen] = useState(false);
+  const [sitePrepSuggestedDays, setSitePrepSuggestedDays] = useState<number | null>(null);
 
   // The whole estimate recomputes on any change — the engine is pure and cheap.
   const estimate = useMemo(
@@ -210,6 +230,121 @@ export function useLaborModel() {
     );
   }, []);
 
+  /** Add on top of any existing qty (BOM import sums duplicates). */
+  const addItemQty = useCallback((roomId: string, catalogId: string, qty: number) => {
+    if (qty <= 0) return;
+    setRooms((prev) =>
+      prev.map((r) => {
+        if (r.id !== roomId) return r;
+        const existing = r.items.find((i) => i.catalogId === catalogId)?.qty ?? 0;
+        const items = r.items.filter((i) => i.catalogId !== catalogId);
+        items.push({ catalogId, qty: existing + qty });
+        return { ...r, items };
+      }),
+    );
+  }, []);
+
+  /**
+   * LT.3 — land an AI mapping run: per BOM location, match a room by name
+   * (case-insensitive) or create one; apply catalog mappings at/above the
+   * confidence bar directly (summing duplicate catalog ids); park everything
+   * else — low confidence or unmapped — in the review tray.
+   */
+  const applyBomMappings = useCallback(
+    (result: LaborMapResult) => {
+      const norm = (s: string) => s.trim().toLowerCase();
+
+      // Location name -> room id, creating rooms for unseen locations.
+      const nextRooms = [...rooms];
+      const roomIdByLoc = new Map<string, string>();
+      for (const m of result.mappings) {
+        const key = norm(m.location);
+        if (roomIdByLoc.has(key)) continue;
+        const existing = nextRooms.find((r) => norm(r.name) === key);
+        if (existing) {
+          roomIdByLoc.set(key, existing.id);
+        } else {
+          const id = `r${++roomSeq.current}`;
+          nextRooms.push({
+            id,
+            name: m.location.trim() || `Room ${nextRooms.length + 1}`,
+            items: [],
+            difficulty: 1,
+            identicalCount: 1,
+          });
+          roomIdByLoc.set(key, id);
+        }
+      }
+
+      // Sum the confident mappings per (room, catalog id), then fold into rooms.
+      const confident = new Map<string, number>(); // `${roomId} ${catalogId}` -> qty
+      const parked: LaborTrayItem[] = [];
+      for (const m of result.mappings) {
+        const roomId = roomIdByLoc.get(norm(m.location))!;
+        if (m.catalogId && m.confidence >= MAP_CONFIDENCE_THRESHOLD) {
+          const k = `${roomId} ${m.catalogId}`;
+          confident.set(k, (confident.get(k) ?? 0) + m.qty);
+        } else {
+          parked.push({
+            id: `t${traySeq.current++}`,
+            roomId,
+            roomName: nextRooms.find((r) => r.id === roomId)?.name ?? m.location,
+            bomItem: m.bomItem,
+            suggestion: m.catalogId
+              ? { catalogId: m.catalogId, qty: m.qty, confidence: m.confidence }
+              : null,
+            reason: m.reason,
+          });
+        }
+      }
+
+      setRooms(
+        nextRooms.map((r) => {
+          let items = r.items;
+          for (const [k, qty] of confident) {
+            const sep = k.indexOf(" ");
+            if (k.slice(0, sep) !== r.id || qty <= 0) continue;
+            const catalogId = k.slice(sep + 1);
+            if (items === r.items) items = [...r.items];
+            const i = items.findIndex((it) => it.catalogId === catalogId);
+            if (i >= 0) items[i] = { ...items[i], qty: items[i].qty + qty };
+            else items.push({ catalogId, qty });
+          }
+          return items === r.items ? r : { ...r, items };
+        }),
+      );
+      setTrayItems((prev) => [...prev, ...parked]);
+      if (parked.length > 0) setTrayOpen(true);
+      setSitePrepSuggestedDays(result.sitePrepDaysSuggested > 0 ? result.sitePrepDaysSuggested : null);
+
+      // Land the user in the first imported room.
+      const firstLoc = result.mappings[0] && roomIdByLoc.get(norm(result.mappings[0].location));
+      if (firstLoc) setSelectedRoomId(firstLoc);
+    },
+    [rooms],
+  );
+
+  /** Review tray: assign a parked line to a catalog entry (sums into the room). */
+  const assignTrayItem = useCallback(
+    (trayId: string, catalogId: string, qty: number) => {
+      const item = trayItems.find((t) => t.id === trayId);
+      if (!item) return;
+      addItemQty(item.roomId, catalogId, qty);
+      setTrayItems((prev) => prev.filter((t) => t.id !== trayId));
+    },
+    [trayItems, addItemQty],
+  );
+
+  /** Review tray: drop a parked line without mapping it. */
+  const skipTrayItem = useCallback((trayId: string) => {
+    setTrayItems((prev) => prev.filter((t) => t.id !== trayId));
+  }, []);
+
+  const clearTray = useCallback(() => {
+    setTrayItems([]);
+    setTrayOpen(false);
+  }, []);
+
   const updateInputs = useCallback((patch: Partial<LaborInputs>) => {
     setInputs((prev) => ({ ...prev, ...patch }));
   }, []);
@@ -239,6 +374,9 @@ export function useLaborModel() {
     setServiceOverrides({});
     setViewMode("services");
     setCatalogGroupChoice(null);
+    setTrayItems([]);
+    setTrayOpen(false);
+    setSitePrepSuggestedDays(null);
     // showSma/serviceRates are settings, not project data — they survive reset.
   }, []);
 
@@ -274,6 +412,16 @@ export function useLaborModel() {
     deleteRoom,
     setRoomFactors,
     setItemQty,
+    addItemQty,
+    applyBomMappings,
+    trayItems,
+    trayOpen,
+    setTrayOpen,
+    assignTrayItem,
+    skipTrayItem,
+    clearTray,
+    sitePrepSuggestedDays,
+    setSitePrepSuggestedDays,
     selectRoom: setSelectedRoomId,
     updateInputs,
     updatePhase,

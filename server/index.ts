@@ -14,6 +14,7 @@ import {
   extractTextCore,
   generateRomCore,
   generateSowCore,
+  mapLaborCore,
 } from "../api/_lib/handlers.js";
 
 const app = express();
@@ -41,6 +42,10 @@ app.post("/api/extract-removals", async (req: Request, res: Response) => {
 
 app.post("/api/dependency-check", async (req: Request, res: Response) => {
   res.json(await dependencyCheckCore(req.body ?? {}));
+});
+
+app.post("/api/map-labor", async (req: Request, res: Response) => {
+  res.json(await mapLaborCore(req.body ?? {}));
 });
 
 app.post("/api/extract-text", async (req: Request, res: Response) => {

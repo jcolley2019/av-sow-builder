@@ -162,3 +162,26 @@ const DependencyFlagSchema = z.object({
   reason: str,
 });
 export const DependencyArraySchema = z.array(DependencyFlagSchema);
+
+// LT.3 — BOM -> labor catalog mapping. Lenient like everything above: one odd
+// row must never drop the whole mapping run.
+const confidence = z.coerce
+  .number()
+  .transform((n) => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0))
+  .catch(0);
+
+const LaborMappingSchema = z.object({
+  location: str,
+  bomItem: z
+    .object({ qty, manufacturer: str, model: str, desc: str })
+    .catch({ qty: 1, manufacturer: "", model: "", desc: "" }),
+  catalogId: nstr,
+  qty,
+  confidence,
+  reason: str,
+});
+export type LaborMapping = z.infer<typeof LaborMappingSchema>;
+
+export const LaborMapSchema = z.object({
+  mappings: z.array(LaborMappingSchema).catch([]),
+});

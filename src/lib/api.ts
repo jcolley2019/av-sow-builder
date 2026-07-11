@@ -215,6 +215,38 @@ export function generateRom(
   return postJson<RomDoc | ExtractError>("/api/generate-rom", { bom, meta, context });
 }
 
+// --- LT.3: BOM -> labor catalog mapping -------------------------------------
+
+export type LaborMapping = {
+  /** BOM location name, echoed exactly — routes the mapping to a labor room. */
+  location: string;
+  bomItem: { qty: number; manufacturer: string; model: string; desc: string };
+  /** null = no labor entry (cable/consumable/accessory of a mapped item). */
+  catalogId: string | null;
+  qty: number;
+  /** 0–1; >= 0.7 applies directly, below goes to the review tray. */
+  confidence: number;
+  reason: string;
+};
+
+export type LaborMapResult = {
+  mappings: LaborMapping[];
+  /** Suggested Site Prep (01-01) qty — NEVER auto-applied, user decides. */
+  sitePrepDaysSuggested: number;
+  usage?: { inputTokens?: number; outputTokens?: number; model?: string };
+};
+
+/** Map a BOM's line items to labor-catalog entries with confidences. */
+export function mapLabor(
+  bom: Pick<BomDoc, "locations">,
+  catalogGroup: "av" | "broadcast" | "all",
+): Promise<LaborMapResult | ExtractError> {
+  return postJson<LaborMapResult | ExtractError>("/api/map-labor", {
+    bom,
+    catalogGroup,
+  });
+}
+
 /** Conservative AV dependency check (read-only): suggestions to confirm. */
 export function dependencyCheck(
   bom: BomDoc,

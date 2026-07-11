@@ -5,12 +5,16 @@
 // wrapper differs. Every route responds HTTP 200; failures come back as an
 // { error, raw } object in the body (unchanged from the original sidecar).
 
+import catalogJson from "../../src/lib/labor/catalog.json";
+
 import { callClaude, MODEL } from "./anthropic.js";
 import {
   BOM_SHAPE,
   BOM_SYSTEM,
   CENTENE_EXEMPLAR,
   DEPENDENCY_SYSTEM,
+  MAP_LABOR_SHAPE,
+  MAP_LABOR_SYSTEM,
   pasteRoomDirective,
   REMOVALS_SHAPE,
   REMOVALS_SYSTEM,
@@ -24,6 +28,7 @@ import {
   cleanRom,
   cleanSow,
   DependencyArraySchema,
+  LaborMapSchema,
   RemovalsArraySchema,
   RomDocSchema,
   SowDocSchema,
@@ -114,6 +119,100 @@ export async function extractBomCore(body: Body): Promise<unknown> {
     raw = responseText(msg);
     const json = await parseModelJson(msg, raw, "object");
     return BomSchema.parse(json);
+  } catch (err) {
+    return { error: errorMessage(err), raw };
+  }
+}
+
+// LT.3 — map a BomDoc's line items onto the labor catalog. The catalog lives
+// in src/lib/labor/catalog.json (same file the client engine imports), so the
+// index the model sees always matches what the UI applies quantities against.
+type LaborCatalogEntry = {
+  section: string;
+  id: string;
+  name: string;
+  unitHrs: number;
+  catalogGroup: "av" | "broadcast";
+  note?: string;
+};
+const LABOR_CATALOG = catalogJson.items as LaborCatalogEntry[];
+
+type MapBomItem = { qty?: number; manufacturer?: string; model?: string; description?: string; ofe?: boolean };
+type MapBomLocation = { name?: string; systems?: { name?: string; items?: MapBomItem[] }[] };
+
+export async function mapLaborCore(body: Body): Promise<unknown> {
+  let raw = "";
+  try {
+    const b = body ?? {};
+    const group = b.catalogGroup === "broadcast" || b.catalogGroup === "all" ? b.catalogGroup : "av";
+    const bom = (b.bom ?? {}) as { locations?: MapBomLocation[] };
+    const locations = Array.isArray(bom.locations) ? bom.locations : [];
+
+    const catalog =
+      group === "all" ? LABOR_CATALOG : LABOR_CATALOG.filter((c) => c.catalogGroup === group);
+    if (locations.length === 0) return { mappings: [], sitePrepDaysSuggested: 0 };
+
+    // Compact catalog index — id | section | name | unitHrs, one line each
+    // (no notes; the note text is UI guidance, not mapping signal).
+    const catalogIndex = catalog
+      .map((c) => `${c.id} | ${c.section} | ${c.name} | ${c.unitHrs}`)
+      .join("\n");
+
+    // Flatten the BOM to one line per item, grouped under location headers.
+    // The system name rides along as context (e.g. mounts under "Display").
+    const bomLines = locations
+      .map((loc) => {
+        const items = (loc.systems ?? []).flatMap((sys) =>
+          (sys.items ?? []).map(
+            (it) =>
+              `qty ${it.qty ?? 1} | ${it.manufacturer ?? ""} | ${it.model ?? ""} | ` +
+              `${it.description ?? ""}${it.ofe ? " | OFE/existing" : ""} [system: ${sys.name ?? ""}]`,
+          ),
+        );
+        return `LOCATION "${loc.name ?? ""}":\n${items.join("\n")}`;
+      })
+      .join("\n\n");
+
+    const user =
+      MAP_LABOR_SHAPE +
+      "\n\nLABOR CATALOG (id | section | name | unit hours):\n" +
+      catalogIndex +
+      "\n\nBOM LINE ITEMS (qty | manufacturer | model | description):\n" +
+      bomLines +
+      "\n\nReturn ONLY the mappings JSON.";
+
+    const msg = await callClaude({
+      model: MODEL,
+      maxTokens: 16000,
+      system: MAP_LABOR_SYSTEM,
+      messages: [{ role: "user", content: user }],
+    });
+    raw = responseText(msg);
+    const json = await parseModelJson(msg, raw, "object");
+    const { mappings } = LaborMapSchema.parse(json);
+
+    // Guard against hallucinated ids: an unknown catalogId becomes unmapped
+    // (the review tray) rather than silently writing to nothing client-side.
+    const byId = new Map(catalog.map((c) => [c.id, c]));
+    const cleaned = mappings.map((m) => {
+      if (m.catalogId === null || byId.has(m.catalogId)) return m;
+      return { ...m, catalogId: null, reason: `${m.reason} (unknown catalog id ${m.catalogId})`.trim() };
+    });
+
+    // Site Prep suggestion (user decision: NEVER auto-added). qty-1-per-on-site-
+    // day per the catalog note, so suggest ceil(total mapped hours / 8).
+    const totalHrs = cleaned.reduce(
+      (s, m) => s + (m.catalogId ? (byId.get(m.catalogId)?.unitHrs ?? 0) * m.qty : 0),
+      0,
+    );
+    const sitePrepDaysSuggested = Math.ceil(totalHrs / 8) || 0;
+
+    return {
+      mappings: cleaned,
+      sitePrepDaysSuggested,
+      // Model-call telemetry for the client/report — never used in the math.
+      usage: { inputTokens: msg.usage?.input_tokens, outputTokens: msg.usage?.output_tokens, model: msg.model },
+    };
   } catch (err) {
     return { error: errorMessage(err), raw };
   }

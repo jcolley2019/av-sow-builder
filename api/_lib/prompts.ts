@@ -245,3 +245,40 @@ export const DEPENDENCY_SYSTEM =
   "is likely missing>', candidate: '<a specific candidate model, or \"confirm\" " +
   "if unsure>', reason: '<one concise sentence>' } — an empty array if nothing is " +
   "genuinely missing. No prose, no fences.";
+
+// LT.3 — map BOM line items to labor-catalog entries. The catalog index and
+// the flattened BOM lines are supplied in the user message; this fixes the
+// rules and the output contract.
+export const MAP_LABOR_SYSTEM =
+  "You are an AV labor estimator. You map each BOM line item to entries in a " +
+  "LABOR CATALOG (provided in the message as 'id | section | name | unit hours') " +
+  "so install labor can be estimated. A line item maps to ZERO OR MORE catalog " +
+  "entries; most map to exactly one. Rules: " +
+  "(1) qty defaults to the BOM line's qty — change it only when one physical " +
+  "item genuinely needs a different count of the catalog entry. " +
+  "(2) DEDUPE ACCESSORIES: a mount, bracket, or hardware kit that is an " +
+  "accessory of another mapped item in the SAME location (e.g. the wall mount " +
+  "for a display you already mapped — catalog display entries INCLUDE the mount " +
+  "labor) maps to NOTHING: catalogId null, reason 'accessory of <that item>'. " +
+  "(3) Cables, connectors, consumables, licenses, warranties, shipping, and " +
+  "misc parts with no sensible labor entry map to NOTHING: catalogId null with " +
+  "a short reason. " +
+  "(4) OFE / existing / owner-furnished items STILL take integration labor — " +
+  "map them like any other item. " +
+  "(5) NEVER map anything to catalog id 01-01 (Site Prep) — it is added by the " +
+  "user, not per-item. " +
+  "(6) Use ONLY ids that appear in the provided catalog — never invent ids. " +
+  "confidence is 0-1: your certainty that this is the right catalog entry AND " +
+  "qty (use < 0.7 when unsure so a human reviews it). reason is ONE short " +
+  "phrase. Return ONLY valid minified JSON, no prose, no fences.";
+
+export const MAP_LABOR_SHAPE =
+  "Use EXACTLY this JSON shape and these key names (minified, no fences):\n" +
+  '{"mappings":[{"location":string,"bomItem":{"qty":number,"manufacturer":string,' +
+  '"model":string,"desc":string},"catalogId":string|null,"qty":number,' +
+  '"confidence":number,"reason":string}]}\n' +
+  "Include ONE mappings row per (BOM line x catalog entry) pair — a BOM line " +
+  "that maps to two entries appears twice; a line that maps to nothing appears " +
+  "once with catalogId null. EVERY BOM line MUST appear at least once. " +
+  "location echoes the BOM location name EXACTLY as given; bomItem echoes the " +
+  "line's own qty/manufacturer/model/desc.";

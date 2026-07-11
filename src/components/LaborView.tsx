@@ -4,7 +4,9 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  FileInput,
   Filter,
+  Inbox,
   Minus,
   Pencil,
   Plus,
@@ -46,10 +48,15 @@ import { computeTravelPlan, type CrewRoster, type TravelMode } from "@/lib/labor
 import type {
   CatalogGroupFilter,
   LaborModel,
+  LaborTrayItem,
   LaborViewMode,
   OverrideKey,
   PhaseKey,
 } from "@/lib/useLaborModel";
+import { DropZone } from "@/components/DropZone";
+import { BOM_ACCEPT } from "@/lib/files";
+import { bomRequestFromFile, extractBom, isError, mapLabor } from "@/lib/api";
+import type { BomDoc } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Formatting
@@ -269,7 +276,103 @@ function OverrideValue({
 // Left rail — rooms
 // ---------------------------------------------------------------------------
 
-function RoomsRail({ labor }: { labor: LaborModel }) {
+/**
+ * LT.3 — BOM intake for labor: drop any BOM the SOW Builder accepts (it rides
+ * the same extraction endpoint), or pull in the BomDoc already loaded there.
+ * Extracted locations become labor rooms; the AI maps line items onto the
+ * catalog. Confident mappings apply directly; the rest park in the review tray.
+ */
+function BomImport({
+  labor,
+  sowBom,
+  company,
+}: {
+  labor: LaborModel;
+  sowBom?: BomDoc | null;
+  company?: string;
+}) {
+  const [busy, setBusy] = useState<null | "extract" | "map">(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const runMapping = async (locations: BomDoc["locations"]) => {
+    setBusy("map");
+    const res = await mapLabor({ locations }, labor.catalogGroup);
+    if (isError(res)) throw new Error(res.error);
+    labor.applyBomMappings(res);
+  };
+
+  const onFiles = async (files: File[]) => {
+    setError(null);
+    try {
+      setBusy("extract");
+      const req = await bomRequestFromFile(files[0]);
+      const extract = await extractBom(req, company);
+      if (isError(extract)) throw new Error(extract.error);
+      if (!extract.locations?.length) throw new Error("No equipment locations found in that file.");
+      await runMapping(extract.locations);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onImport = async () => {
+    if (!sowBom || sowBom.locations.length === 0) return;
+    setError(null);
+    try {
+      await runMapping(sowBom.locations);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <DropZone
+        accept={BOM_ACCEPT}
+        multiple={false}
+        busy={busy !== null}
+        onFiles={onFiles}
+        icon={<Upload className="h-4 w-4" />}
+        title="Drop a BOM to auto-map items"
+        hint=".xlsx · .xlsm · .xls · .csv · .pdf · .png · .jpg · .webp"
+        className="px-3 py-4"
+      />
+      {busy === "map" && (
+        <p className="text-center text-xs text-muted-foreground">
+          Mapping items to the labor catalog…
+        </p>
+      )}
+      {sowBom && sowBom.locations.length > 0 && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          disabled={busy !== null}
+          onClick={onImport}
+        >
+          <FileInput className="h-3.5 w-3.5" />
+          Import from SOW Builder ({sowBom.locations.length}{" "}
+          {sowBom.locations.length === 1 ? "location" : "locations"})
+        </Button>
+      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function RoomsRail({
+  labor,
+  sowBom,
+  company,
+}: {
+  labor: LaborModel;
+  sowBom?: BomDoc | null;
+  company?: string;
+}) {
   return (
     <div className="space-y-2">
       {labor.rooms.map((room) => {
@@ -345,16 +448,8 @@ function RoomsRail({ labor }: { labor: LaborModel }) {
         <Plus className="h-4 w-4" /> Add room
       </Button>
 
-      {/* BOM dropzone — visually present, wired in LT.3. */}
-      <div
-        aria-disabled
-        title="Drop a BOM to auto-map items to the catalog — coming in LT.3"
-        className="cursor-not-allowed rounded-lg border border-dashed border-border/70 px-3 py-5 text-center opacity-50"
-      >
-        <Upload className="mx-auto h-4 w-4 text-muted-foreground" />
-        <p className="mt-1.5 text-xs text-muted-foreground">Drop a BOM to auto-map items</p>
-        <p className="eyebrow mt-1">Coming in LT.3</p>
-      </div>
+      {/* BOM dropzone + SOW Builder import (LT.3). */}
+      <BomImport labor={labor} sowBom={sowBom} company={company} />
     </div>
   );
 }
@@ -2082,13 +2177,238 @@ function LaborSettings({ labor }: { labor: LaborModel }) {
 // Services sheet, or the Full Sheet grid; all read the same labor model.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Review tray (LT.3) — BOM lines the AI could not place confidently
+// ---------------------------------------------------------------------------
+
+const fmtPct = (n: number) => `${Math.round(n * 100)}%`;
+
+/** One parked BOM line: the item, the AI's guess, and the assign controls. */
+function TrayRow({ item, labor }: { item: LaborTrayItem; labor: LaborModel }) {
+  const pool = useMemo(() => groupItems(labor.catalogGroup), [labor.catalogGroup]);
+  const suggested = item.suggestion
+    ? pool.find((c) => c.id === item.suggestion!.catalogId) ??
+      CATALOG.find((c) => c.id === item.suggestion!.catalogId)
+    : undefined;
+
+  const [picked, setPicked] = useState<CatalogItem | undefined>(suggested);
+  const [qty, setQty] = useState(item.suggestion?.qty ?? Math.max(1, item.bomItem.qty));
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return pool
+      .filter((c) => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [pool, query]);
+
+  const itemLabel = [item.bomItem.manufacturer, item.bomItem.model]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div className="space-y-1.5 border-t border-border/60 px-3 py-2.5 first:border-t-0">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium" title={item.bomItem.desc}>
+            <span className="font-mono tabular text-muted-foreground">{item.bomItem.qty}×</span>{" "}
+            {itemLabel || item.bomItem.desc || "(unnamed item)"}
+          </p>
+          {itemLabel && item.bomItem.desc && (
+            <p className="truncate text-[11px] text-muted-foreground" title={item.bomItem.desc}>
+              {item.bomItem.desc}
+            </p>
+          )}
+        </div>
+        <span className="shrink-0 rounded border border-border bg-raised/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+          {item.roomName}
+        </span>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        {item.suggestion ? (
+          <>
+            AI guess:{" "}
+            <span className="text-foreground">
+              {suggested ? `${suggested.id} ${suggested.name}` : item.suggestion.catalogId}
+            </span>{" "}
+            ({fmtPct(item.suggestion.confidence)}) — {item.reason}
+          </>
+        ) : (
+          <>No suggestion — {item.reason}</>
+        )}
+      </p>
+
+      <div className="flex items-center gap-1.5">
+        <div ref={boxRef} className="relative min-w-0 flex-1">
+          <Input
+            value={open ? query : picked ? `${picked.id} ${picked.name}` : query}
+            placeholder="Search catalog…"
+            aria-label={`Catalog entry for ${itemLabel || "item"}`}
+            onFocus={() => setOpen(true)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+            }}
+            className="h-7 text-xs"
+          />
+          {open && matches.length > 0 && (
+            <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-panel shadow-lg">
+              {matches.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className="flex w-full items-baseline gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent"
+                  onClick={() => {
+                    setPicked(c);
+                    setQuery("");
+                    setOpen(false);
+                  }}
+                >
+                  <span className="font-mono text-[10px] tabular text-muted-foreground">{c.id}</span>
+                  <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                  <span className="font-mono text-[10px] tabular text-muted-foreground">
+                    {c.unitHrs}h
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <Stepper label="quantity" value={qty} min={1} onChange={setQty} />
+        <Button
+          size="sm"
+          className="h-7 px-2 text-xs"
+          disabled={!picked}
+          onClick={() => picked && labor.assignTrayItem(item.id, picked.id, qty)}
+        >
+          <Check className="h-3.5 w-3.5" /> Apply
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs text-muted-foreground"
+          onClick={() => labor.skipTrayItem(item.id)}
+        >
+          Skip
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The floating review panel. Lists every parked line plus the Site Prep
+ * suggestion (never auto-applied — the user adds it deliberately).
+ */
+function ReviewTray({ labor }: { labor: LaborModel }) {
+  if (!labor.trayOpen) return null;
+  const targetRoom = labor.selectedRoom;
+  return (
+    <div className="fixed bottom-4 right-4 z-50 flex max-h-[70vh] w-[440px] max-w-[calc(100vw-2rem)] flex-col rounded-lg border border-border bg-panel shadow-2xl">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <span className="text-sm font-medium">
+          Review mapping
+          {labor.trayItems.length > 0 && (
+            <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[11px] tabular text-primary">
+              {labor.trayItems.length}
+            </span>
+          )}
+        </span>
+        <div className="flex items-center gap-1">
+          {labor.trayItems.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground"
+              onClick={labor.clearTray}
+            >
+              Skip all
+            </Button>
+          )}
+          <button
+            type="button"
+            aria-label="Close review tray"
+            className="rounded p-1 text-muted-foreground hover:text-foreground"
+            onClick={() => labor.setTrayOpen(false)}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {labor.sitePrepSuggestedDays != null && (
+        <div className="flex items-center justify-between gap-2 border-b border-border bg-raised/40 px-3 py-2">
+          <p className="text-[11px] text-muted-foreground">
+            AI suggests <span className="font-mono tabular text-foreground">{labor.sitePrepSuggestedDays}</span>{" "}
+            × Site Prep (01-01) — one per on-site day. Not added automatically.
+          </p>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-[11px]"
+              disabled={!targetRoom}
+              onClick={() => {
+                if (!targetRoom) return;
+                labor.addItemQty(targetRoom.id, "01-01", labor.sitePrepSuggestedDays ?? 0);
+                labor.setSitePrepSuggestedDays(null);
+              }}
+            >
+              Add to {targetRoom?.name ?? "room"}
+            </Button>
+            <button
+              type="button"
+              aria-label="Dismiss Site Prep suggestion"
+              className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+              onClick={() => labor.setSitePrepSuggestedDays(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {labor.trayItems.length === 0 ? (
+          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+            Nothing left to review.
+          </p>
+        ) : (
+          labor.trayItems.map((t) => <TrayRow key={t.id} item={t} labor={labor} />)
+        )}
+      </div>
+    </div>
+  );
+}
+
 const VIEW_MODES: { key: LaborViewMode; label: string }[] = [
   { key: "services", label: "Services" },
   { key: "details", label: "Details" },
   { key: "estimate", label: "Estimate" },
 ];
 
-export function LaborView({ labor }: { labor: LaborModel }) {
+export function LaborView({
+  labor,
+  sowBom,
+  company,
+}: {
+  labor: LaborModel;
+  sowBom?: BomDoc | null;
+  company?: string;
+}) {
   return (
     <div className="flex flex-col lg:h-full">
       <div className="mx-auto flex w-full max-w-[1500px] items-center justify-between px-4 pt-4 sm:px-6">
@@ -2109,20 +2429,54 @@ export function LaborView({ labor }: { labor: LaborModel }) {
             </button>
           ))}
         </div>
-        <LaborSettings labor={labor} />
+        <div className="flex items-center gap-2">
+          {labor.trayItems.length > 0 && (
+            <button
+              type="button"
+              onClick={() => labor.setTrayOpen(!labor.trayOpen)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs transition-colors",
+                labor.trayOpen
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Inbox className="h-3.5 w-3.5" />
+              Review
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular",
+                  labor.trayOpen ? "bg-primary-foreground/20" : "bg-primary/15 text-primary",
+                )}
+              >
+                {labor.trayItems.length}
+              </span>
+            </button>
+          )}
+          <LaborSettings labor={labor} />
+        </div>
       </div>
       {labor.viewMode === "services" ? (
         <ServicesSheet labor={labor} />
       ) : labor.viewMode === "details" ? (
         <DetailsView labor={labor} />
       ) : (
-        <EstimateZones labor={labor} />
+        <EstimateZones labor={labor} sowBom={sowBom} company={company} />
       )}
+      <ReviewTray labor={labor} />
     </div>
   );
 }
 
-function EstimateZones({ labor }: { labor: LaborModel }) {
+function EstimateZones({
+  labor,
+  sowBom,
+  company,
+}: {
+  labor: LaborModel;
+  sowBom?: BomDoc | null;
+  company?: string;
+}) {
   return (
     <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 gap-6 px-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[280px_minmax(0,1fr)_400px] lg:grid-rows-1">
       {/* LEFT — rooms */}
@@ -2132,7 +2486,7 @@ function EstimateZones({ labor }: { labor: LaborModel }) {
           <span className="eyebrow">{labor.rooms.length}</span>
         </div>
         <div className="pb-6 pt-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
-          <RoomsRail labor={labor} />
+          <RoomsRail labor={labor} sowBom={sowBom} company={company} />
         </div>
       </section>
 

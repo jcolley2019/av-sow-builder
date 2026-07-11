@@ -687,7 +687,7 @@ function App() {
 
       {view === "labor" ? (
         <main className="flex-1 lg:min-h-0 lg:overflow-hidden">
-          <LaborView labor={labor} />
+          <LaborView labor={labor} sowBom={editor.doc} company={company} />
         </main>
       ) : (
       /* Two-pane workspace. On lg each pane fills the viewport below the top
