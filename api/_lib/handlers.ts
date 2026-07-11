@@ -111,7 +111,7 @@ export async function extractBomCore(body: Body): Promise<unknown> {
       messages: [{ role: "user", content }],
     });
     raw = responseText(msg);
-    const json = parseModelJson(msg, raw, "object");
+    const json = await parseModelJson(msg, raw, "object");
     return BomSchema.parse(json);
   } catch (err) {
     return { error: errorMessage(err), raw };
@@ -161,7 +161,7 @@ export async function extractRemovalsCore(body: Body): Promise<unknown> {
       messages: [{ role: "user", content }],
     });
     raw = responseText(msg);
-    const json = coerceRemovalsArray(parseModelJson(msg, raw, "array"));
+    const json = coerceRemovalsArray(await parseModelJson(msg, raw, "array"));
     const removals = RemovalsArraySchema.parse(json);
     return { removals };
   } catch (err) {
@@ -306,7 +306,7 @@ export async function generateSowCore(body: Body): Promise<unknown> {
       messages: [{ role: "user", content: user }],
     });
     raw = responseText(msg);
-    const json = parseModelJson(msg, raw, "object");
+    const json = await parseModelJson(msg, raw, "object");
     return cleanSow(SowDocSchema.parse(json));
   } catch (err) {
     return { error: errorMessage(err), raw };
@@ -350,7 +350,7 @@ export async function generateRomCore(body: Body): Promise<unknown> {
       messages: [{ role: "user", content: user }],
     });
     raw = responseText(msg);
-    const json = parseModelJson(msg, raw, "object");
+    const json = await parseModelJson(msg, raw, "object");
     return cleanRom(RomDocSchema.parse(json));
   } catch (err) {
     return { error: errorMessage(err), raw };

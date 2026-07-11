@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import PizZip from "pizzip";
 
+import { callClaude, MODEL } from "./anthropic.js";
+
 // Extract plain body text from a .docx buffer (word/document.xml only).
 export function docxBufferToText(buf: Buffer): string {
   const zip = new PizZip(buf);
@@ -141,11 +143,11 @@ export function responseText(msg: Anthropic.Message): string {
  * Call AFTER capturing responseText so the partial/raw output is still returned
  * to the client as `raw` (the "Show raw model output" toggle).
  */
-export function parseModelJson(
+export async function parseModelJson(
   msg: Anthropic.Message,
   raw: string,
   shape: "object" | "array",
-): unknown {
+): Promise<unknown> {
   const outTokens = msg.usage?.output_tokens;
   const sig = `stop_reason=${msg.stop_reason} output_tokens=${outTokens ?? "?"} chars=${raw.length}`;
 
@@ -160,27 +162,76 @@ export function parseModelJson(
   }
 
   const cleaned = extractJsonText(raw, shape);
+  let firstParseError: string;
   try {
     return JSON.parse(cleaned);
-  } catch {
-    if (isUnbalancedJson(cleaned)) {
-      console.warn(`[extract] model output is incomplete JSON — ${sig}`);
-      throw new Error(
+  } catch (err) {
+    firstParseError = errorMessage(err);
+  }
+
+  // The fallback error is judged on the PRE-repair output, so the diagnosis
+  // reflects what the model originally produced, not what repair made of it.
+  const originalError = isUnbalancedJson(cleaned)
+    ? new Error(
         `The model stopped before completing the JSON (${sig} — the output is ` +
           `unbalanced and ends mid-structure). This is a model runaway/stall, ` +
           `not a parsing bug. Retry the generation; if it recurs with a large ` +
           `style example, the example may be crowding the output — trim it.`,
+      )
+    : new Error(
+        `The model returned text that isn't valid JSON (${sig}). It finished on ` +
+          `its own rather than hitting the token limit, so this is a malformed or ` +
+          `runaway output, not a length cap — the full output is shown below. If ` +
+          `it repeats rows or includes content from sheets other than the BOM, the ` +
+          `cause is the input/prompt, not max_tokens.`,
       );
-    }
-    console.warn(`[extract] model output is not valid JSON — ${sig}`);
-    throw new Error(
-      `The model returned text that isn't valid JSON (${sig}). It finished on ` +
-        `its own rather than hitting the token limit, so this is a malformed or ` +
-        `runaway output, not a length cap — the full output is shown below. If ` +
-        `it repeats rows or includes content from sheets other than the BOM, the ` +
-        `cause is the input/prompt, not max_tokens.`,
-    );
+
+  // One-shot repair: hand the broken output + parser error back to the model.
+  // Attempted for unbalanced output too — it can often complete a truncated
+  // tail. On any repair failure, surface the original error unchanged.
+  console.warn(`[repair] attempting one-shot JSON repair — ${sig}`);
+  try {
+    const repaired = await repairModelJson(cleaned, firstParseError, shape);
+    const parsed: unknown = JSON.parse(extractJsonText(repaired, shape));
+    console.warn(`[repair] repair succeeded`);
+    return parsed;
+  } catch {
+    console.warn(`[extract] repair failed; model output is not valid JSON — ${sig}`);
+    throw originalError;
   }
+}
+
+const REPAIR_SYSTEM =
+  "You repair malformed JSON. You are given a JSON document that failed to " +
+  "parse and the parser's error. Return ONLY the corrected, complete, valid " +
+  "JSON — no commentary, no fences. Preserve ALL content and structure; " +
+  'change only what is needed to make it parse. If a string appears where a ' +
+  'key/value pair belongs (e.g. {"kind":"paragraph","text":"A","B"}), ' +
+  "convert the stray string into a sibling object of the same kind (a second " +
+  "paragraph block) rather than deleting it.";
+
+/** One-shot model repair of malformed JSON output. Returns the model's reply
+ *  text (still to be run through extractJsonText + JSON.parse by the caller). */
+export async function repairModelJson(
+  broken: string,
+  parseError: string,
+  shape: "object" | "array",
+): Promise<string> {
+  const msg = await callClaude({
+    model: MODEL,
+    maxTokens: 16000,
+    system: REPAIR_SYSTEM,
+    messages: [
+      {
+        role: "user",
+        content:
+          `The JSON ${shape} below failed to parse with this error:\n` +
+          `${parseError}\n\n` +
+          `The document to repair:\n${broken}`,
+      },
+    ],
+  });
+  return responseText(msg);
 }
 
 // Models sometimes emit literal control characters (raw newlines/tabs) inside
