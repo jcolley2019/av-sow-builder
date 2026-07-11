@@ -99,7 +99,7 @@ export function BomIntake({
               onFiles={(f) => onAddExamples?.(f)}
               icon={<FileText className="h-6 w-6" />}
               title="Drop up to 2 example SOWs"
-              hint=".docx · .pdf · .txt"
+              hint=".docx · .dotx · .pdf · .txt"
             />
             {examplesError && (
               <RawError error={examplesError} label="Example read failed" />
@@ -153,7 +153,7 @@ export function BomIntake({
                   className="py-3"
                   icon={<FileText className="h-5 w-5" />}
                   title="Add another example"
-                  hint=".docx · .pdf · .txt"
+                  hint=".docx · .dotx · .pdf · .txt"
                 />
               )}
               {examplesError && (

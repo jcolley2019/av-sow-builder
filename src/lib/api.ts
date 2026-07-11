@@ -172,9 +172,12 @@ export function generateSow(
 
 // --- Match-a-Style (example SOW) -------------------------------------------
 
-/** Extract plain text from an example SOW: .txt client-side, .docx/.pdf server. */
+/** Extract plain text from an example SOW: .txt client-side, .docx/.dotx/.pdf
+ *  server. A .dotx (Word template) is the same OOXML zip as .docx, so it is
+ *  sent as kind "docx" and the server handles it unchanged. */
 export async function extractStyleText(file: File): Promise<string> {
-  const ext = extOf(file.name);
+  let ext = extOf(file.name);
+  if (ext === "dotx") ext = "docx";
   if (ext === "txt" || file.type === "text/plain") {
     return (await file.text()).trim();
   }

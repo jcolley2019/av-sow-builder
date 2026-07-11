@@ -76,7 +76,7 @@ export function StylePanel({
               onFiles={onFiles}
               icon={<Wand2 className="h-5 w-5" />}
               title="Drop an example SOW"
-              hint=".docx · .pdf · .txt"
+              hint=".docx · .dotx · .pdf · .txt"
               className="py-5"
             />
             <div className="space-y-2">

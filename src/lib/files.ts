@@ -54,6 +54,7 @@ export const DEMO_ACCEPT: Record<string, string[]> = {
 // Example-SOW (style sample) inputs: Word, PDF, or plain text.
 export const STYLE_ACCEPT: Record<string, string[]> = {
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.template": [".dotx"],
   "application/pdf": [".pdf"],
   "text/plain": [".txt"],
 };
