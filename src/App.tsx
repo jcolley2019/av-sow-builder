@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   FileText,
+  HelpCircle,
   RotateCcw,
   Loader2,
   Sparkles,
@@ -16,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { BomIntake } from "@/components/BomIntake";
 import { BomReview } from "@/components/BomReview";
 import { SettingsMenu } from "@/components/SettingsMenu";
+import { HelpOverlay } from "@/components/HelpOverlay";
 import { RemovalsPanel } from "@/components/RemovalsPanel";
 import { StylePanel } from "@/components/StylePanel";
 import { SowPreview } from "@/components/SowPreview";
@@ -213,6 +215,8 @@ function App() {
 
   // Compare mode: a second (read-only) equipment list + a dependency check.
   const [compareBom, setCompareBom] = useState<BomDoc | null>(null);
+  // SC.8 — Help & Tips overlay, reachable from both top-level views.
+  const [helpOpen, setHelpOpen] = useState(false);
   const [compareFilename, setCompareFilename] = useState<string | null>(null);
   const [compareBusy, setCompareBusy] = useState(false);
   const [compareError, setCompareError] = useState<ExtractError | null>(null);
@@ -681,9 +685,21 @@ function App() {
               <RotateCcw /> Start over
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="Help and tips"
+            title="Help & Tips — workflows for both tabs"
+            className="h-8 w-8 p-0"
+            onClick={() => setHelpOpen(true)}
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
           <SettingsMenu company={company} onCompanyChange={updateCompany} />
         </div>
       </header>
+
+      <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       {view === "labor" ? (
         <main className="flex-1 lg:min-h-0 lg:overflow-hidden">
@@ -797,6 +813,7 @@ function App() {
                             <SelectTrigger
                               className="h-8 w-[180px] text-xs"
                               aria-label="Report style"
+                              title="Visual theme for the downloaded .docx — a Custom SOW example's theme overrides this"
                             >
                               <SelectValue placeholder="Report style" />
                             </SelectTrigger>

@@ -81,6 +81,7 @@ function Stepper({
   max,
   format = (n: number) => String(n),
   label,
+  title,
 }: {
   value: number;
   onChange: (n: number) => void;
@@ -89,6 +90,7 @@ function Stepper({
   max?: number;
   format?: (n: number) => string;
   label: string;
+  title?: string;
 }) {
   const clamp = (n: number) => {
     let v = Math.max(min, n);
@@ -97,7 +99,7 @@ function Stepper({
     return Math.round(v * 100) / 100;
   };
   return (
-    <div className="inline-flex h-7 items-center rounded-md border border-border bg-raised/60">
+    <div title={title} className="inline-flex h-7 items-center rounded-md border border-border bg-raised/60">
       <button
         type="button"
         aria-label={`Decrease ${label}`}
@@ -127,15 +129,17 @@ function NumField({
   onChange,
   step = 1,
   suffix,
+  title,
 }: {
   label: string;
   value: number;
   onChange: (n: number) => void;
   step?: number;
   suffix?: string;
+  title?: string;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 py-0.5">
+    <label title={title} className="flex items-center justify-between gap-3 py-0.5">
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className="flex items-center gap-1.5">
         <Input
@@ -234,7 +238,10 @@ function OverrideValue({
     <span className="inline-flex items-center gap-1.5">
       {overridden && (
         <>
-          <span className="font-mono text-[10px] tabular text-muted-foreground/60 line-through">
+          <span
+            title={`Auto value ${fmtHrs(adj.auto)} — press the arrow to restore it`}
+            className="font-mono text-[10px] tabular text-muted-foreground/60 line-through"
+          >
             {fmtHrs(adj.auto)}
           </span>
           <button
@@ -411,6 +418,7 @@ function RoomsRail({
                   <span className="text-xs text-muted-foreground">Difficulty</span>
                   <Stepper
                     label="difficulty"
+                    title="Multiplies every unit-hour in this room — 0.5 easy to 2.0 hard"
                     value={room.difficulty}
                     min={0.5}
                     max={2}
@@ -423,6 +431,7 @@ function RoomsRail({
                   <span className="text-xs text-muted-foreground">Identical rooms</span>
                   <Stepper
                     label="identical rooms"
+                    title="Counts this room's hours once per identical room — set 3 for three of these"
                     value={room.identicalCount}
                     min={1}
                     step={1}
@@ -969,6 +978,7 @@ function SummaryRail({ labor }: { labor: LaborModel }) {
                 ))}
                 <NumField
                   label="% In-House"
+                  title="Share of the install built in the shop — splits hours between In-House and On-Site"
                   value={inputs.percentInHouse ?? 25}
                   step={5}
                   suffix="%"
@@ -1416,7 +1426,7 @@ function ServicesSheet({ labor }: { labor: LaborModel }) {
                 size="sm"
                 variant="outline"
                 className="h-7 gap-1.5 text-xs"
-                title="paste at Services!N4"
+                title="Copies the room rows as tab-separated values — paste at Services!N4"
                 onClick={copyForDTools}
               >
                 {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
@@ -1717,6 +1727,7 @@ function DetailsView({ labor }: { labor: LaborModel }) {
             ))}
             <NumField
               label="% In-House"
+              title="Share of the install built in the shop — splits hours between In-House and On-Site"
               value={inputs.percentInHouse ?? 25}
               step={5}
               suffix="%"
@@ -2433,6 +2444,7 @@ export function LaborView({
           {labor.trayItems.length > 0 && (
             <button
               type="button"
+              title="BOM lines the AI couldn't place confidently — assign or skip each one"
               onClick={() => labor.setTrayOpen(!labor.trayOpen)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs transition-colors",

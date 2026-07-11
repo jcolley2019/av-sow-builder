@@ -14,6 +14,8 @@ type DropZoneProps = {
   busy?: boolean;
   disabled?: boolean;
   className?: string;
+  /** Native hover tooltip on the zone (the `title` prop is the visible label). */
+  hoverTitle?: string;
 };
 
 export function DropZone({
@@ -26,6 +28,7 @@ export function DropZone({
   busy = false,
   disabled = false,
   className,
+  hoverTitle,
 }: DropZoneProps) {
   const onDrop = React.useCallback(
     (accepted: File[]) => {
@@ -49,6 +52,7 @@ export function DropZone({
   return (
     <div
       {...getRootProps()}
+      title={hoverTitle}
       className={cn(
         "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-8 text-center transition-colors",
         isDragActive

@@ -100,6 +100,7 @@ export function BomIntake({
               icon={<FileText className="h-6 w-6" />}
               title="Drop up to 2 example SOWs"
               hint=".docx · .dotx · .pdf · .txt"
+              hoverTitle="Drop completed project SOWs — they teach voice and layout better than blank templates"
             />
             {examplesError && (
               <RawError error={examplesError} label="Example read failed" />
