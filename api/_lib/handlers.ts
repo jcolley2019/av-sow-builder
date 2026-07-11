@@ -36,6 +36,7 @@ import {
   type ContentBlock,
   docxBufferToText,
   errorMessage,
+  extractDocxTheme,
   extractJsonText,
   imageMediaType,
   maybeExtractPdfText,
@@ -205,7 +206,9 @@ export async function extractTextCore(body: Body): Promise<unknown> {
       return { text: "" };
     }
     if (kind === "docx") {
-      return { text: docxBufferToText(Buffer.from(dataB64, "base64")) };
+      const buf = Buffer.from(dataB64, "base64");
+      // SC.6: return the example's visual theme alongside its text.
+      return { text: docxBufferToText(buf), theme: extractDocxTheme(buf) };
     }
     if (kind === "pdf") {
       const content: ContentBlock[] = [

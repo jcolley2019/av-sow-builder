@@ -1,4 +1,4 @@
-import type { BomDoc, RemovalItem, RomDoc, SowDoc } from "./types";
+import type { BomDoc, RemovalItem, RomDoc, SowDoc, StyleTheme } from "./types";
 import {
   classifyFile,
   extOf,
@@ -172,26 +172,32 @@ export function generateSow(
 
 // --- Match-a-Style (example SOW) -------------------------------------------
 
+export type StyleExtract = { text: string; theme?: StyleTheme };
+
 /** Extract plain text from an example SOW: .txt client-side, .docx/.dotx/.pdf
  *  server. A .dotx (Word template) is the same OOXML zip as .docx, so it is
- *  sent as kind "docx" and the server handles it unchanged. */
-export async function extractStyleText(file: File): Promise<string> {
+ *  sent as kind "docx" and the server handles it unchanged. SC.6: .docx/.dotx
+ *  also return the example's visual theme; PDFs and pasted text get none. */
+export async function extractStyleText(file: File): Promise<StyleExtract> {
   let ext = extOf(file.name);
   if (ext === "dotx") ext = "docx";
   if (ext === "txt" || file.type === "text/plain") {
-    return (await file.text()).trim();
+    return { text: (await file.text()).trim() };
   }
   if (ext === "docx" || ext === "pdf") {
-    const res = await postJson<{ text: string } | ExtractError>("/api/extract-text", {
-      kind: ext,
-      filename: file.name,
-      dataB64: await fileToBase64(file),
-    });
+    const res = await postJson<{ text: string; theme?: StyleTheme } | ExtractError>(
+      "/api/extract-text",
+      {
+        kind: ext,
+        filename: file.name,
+        dataB64: await fileToBase64(file),
+      },
+    );
     if (isError(res)) throw new Error(res.error);
-    return (res.text ?? "").trim();
+    return { text: (res.text ?? "").trim(), theme: res.theme };
   }
   // Best effort for unknown types: try reading as text.
-  return (await file.text()).trim();
+  return { text: (await file.text()).trim() };
 }
 
 /** Summarize how an example's writing style compares to the house style. */

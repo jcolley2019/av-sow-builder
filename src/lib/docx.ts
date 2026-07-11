@@ -15,7 +15,7 @@ import {
   convertInchesToTwip,
 } from "docx";
 
-import type { RomDoc, SowDoc, SowSection } from "./types";
+import type { RomDoc, SowDoc, SowSection, StyleTheme } from "./types";
 import {
   OTHER_LABOR_FIELDS,
   type LaborResult,
@@ -66,16 +66,54 @@ function bodyRuns(text: string, models: string[]): TextRun[] {
   }
 }
 
-function sectionHeading(section: SowSection): Paragraph {
+// SC.6 — house styling used wherever a StyleTheme field is missing.
+const HOUSE = {
+  bodyFont: "Calibri",
+  bodySizePt: 11,
+  heading1SizePt: 13,
+  heading2SizePt: 11,
+  titleSizePt: 16,
+  headingUnderlineColor: "999999",
+} as const;
+
+/** Relative luminance (sRGB, gamma-corrected) of a 6-digit hex color. */
+function relativeLuminance(hex: string): number {
+  const chan = (i: number) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * chan(0) + 0.7152 * chan(2) + 0.0722 * chan(4);
+}
+
+function sectionHeading(section: SowSection, theme?: StyleTheme): Paragraph {
   const level1 = section.level === 1;
+  // House look: bottom border on level-1 headings only. A theme overrides the
+  // level-1 border on/off; level-2 headings never get one.
+  const underline = level1 && (theme?.headingUnderline ?? true);
+  const sizePt = level1
+    ? theme?.heading1SizePt ?? HOUSE.heading1SizePt
+    : theme?.heading2SizePt ?? HOUSE.heading2SizePt;
   return new Paragraph({
     spacing: { before: level1 ? 240 : 160, after: level1 ? 80 : 60 },
     keepNext: true,
-    border: level1
-      ? { bottom: { style: BorderStyle.SINGLE, size: 6, space: 2, color: "999999" } }
+    border: underline
+      ? {
+          bottom: {
+            style: BorderStyle.SINGLE,
+            size: 6,
+            space: 2,
+            color: theme?.headingUnderlineColor ?? HOUSE.headingUnderlineColor,
+          },
+        }
       : undefined,
     children: [
-      new TextRun({ text: sanitize(section.heading), bold: true, size: level1 ? PT(13) : PT(11) }),
+      new TextRun({
+        text: sanitize(section.heading),
+        bold: true,
+        size: PT(sizePt),
+        font: theme?.headingFont,
+        color: theme?.headingColor,
+      }),
     ],
   });
 }
@@ -107,14 +145,23 @@ function blocksToParagraphs(section: SowSection, models: string[]): Paragraph[] 
   return out;
 }
 
-/** Build the docx Document (pure — no DOM). */
-export function buildSowDocument(sow: SowDoc, models: string[]): Document {
+/** Build the docx Document (pure — no DOM). SC.6: optional StyleTheme from a
+ *  .docx/.dotx example; house values fall back per missing field. */
+export function buildSowDocument(sow: SowDoc, models: string[], theme?: StyleTheme): Document {
   const body: Paragraph[] = [];
 
   body.push(
     new Paragraph({
       spacing: { after: 80 },
-      children: [new TextRun({ text: sanitize(sow.title), bold: true, size: PT(16) })],
+      children: [
+        new TextRun({
+          text: sanitize(sow.title),
+          bold: true,
+          size: PT(theme?.titleSizePt ?? HOUSE.titleSizePt),
+          font: theme?.headingFont,
+          color: theme?.headingColor,
+        }),
+      ],
     }),
   );
 
@@ -122,7 +169,14 @@ export function buildSowDocument(sow: SowDoc, models: string[]): Document {
     body.push(
       new Paragraph({
         spacing: { after: 80 },
-        children: [new TextRun({ text: sanitize(sow.subtitle), bold: true, size: PT(12) })],
+        children: [
+          new TextRun({
+            text: sanitize(sow.subtitle),
+            bold: true,
+            size: PT(12),
+            font: theme?.headingFont,
+          }),
+        ],
       }),
     );
   }
@@ -138,18 +192,67 @@ export function buildSowDocument(sow: SowDoc, models: string[]): Document {
 
   // Render ONLY the sections present in the SowDoc.
   for (const section of sow.sections) {
-    body.push(sectionHeading(section));
+    body.push(sectionHeading(section, theme));
     body.push(...blocksToParagraphs(section, models));
   }
 
-  const header = new Header({
-    children: [
-      new Paragraph({
-        alignment: AlignmentType.LEFT,
-        children: [new TextRun({ text: sanitize(sow.headerLine), size: PT(9) })],
-      }),
-    ],
-  });
+  // SC.6: when the example has a shaded header band, reproduce it as a
+  // borderless full-width single-cell table with that fill; light text is
+  // forced on dark fills unless the example gave an explicit text color.
+  let header: Header;
+  const band = theme?.headerBand;
+  if (band?.fill) {
+    const bandText =
+      band.textColor ?? (relativeLuminance(band.fill) < 0.5 ? "FFFFFF" : undefined);
+    const none = { style: BorderStyle.NONE, size: 0, color: "auto" } as const;
+    header = new Header({
+      children: [
+        new Table({
+          width: fullWidth,
+          borders: {
+            top: none,
+            bottom: none,
+            left: none,
+            right: none,
+            insideHorizontal: none,
+            insideVertical: none,
+          },
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({
+                  shading: { fill: band.fill },
+                  margins: { top: 80, bottom: 80, left: 120, right: 120 },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.LEFT,
+                      children: [
+                        new TextRun({
+                          text: sanitize(sow.headerLine),
+                          size: PT(9),
+                          color: bandText,
+                          font: theme?.headingFont,
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+  } else {
+    header = new Header({
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.LEFT,
+          children: [new TextRun({ text: sanitize(sow.headerLine), size: PT(9) })],
+        }),
+      ],
+    });
+  }
 
   const footer = new Footer({
     children: [
@@ -168,7 +271,16 @@ export function buildSowDocument(sow: SowDoc, models: string[]): Document {
   return new Document({
     creator: "SOW Generator",
     title: sanitize(sow.title),
-    styles: { default: { document: { run: { font: "Calibri", size: PT(11) } } } },
+    styles: {
+      default: {
+        document: {
+          run: {
+            font: theme?.bodyFont ?? HOUSE.bodyFont,
+            size: PT(theme?.bodySizePt ?? HOUSE.bodySizePt),
+          },
+        },
+      },
+    },
     sections: [
       {
         properties: {
@@ -192,8 +304,8 @@ export function buildSowDocument(sow: SowDoc, models: string[]): Document {
   });
 }
 
-export function sowToBlob(sow: SowDoc, models: string[]): Promise<Blob> {
-  return Packer.toBlob(buildSowDocument(sow, models));
+export function sowToBlob(sow: SowDoc, models: string[], theme?: StyleTheme): Promise<Blob> {
+  return Packer.toBlob(buildSowDocument(sow, models, theme));
 }
 
 /** Build the .docx in the browser and trigger a download (no server round-trip). */
@@ -201,8 +313,9 @@ export async function downloadSowDocx(
   sow: SowDoc,
   models: string[],
   filename: string,
+  theme?: StyleTheme,
 ): Promise<void> {
-  await triggerDownload(await sowToBlob(sow, models), filename);
+  await triggerDownload(await sowToBlob(sow, models, theme), filename);
 }
 
 // ---------------------------------------------------------------------------

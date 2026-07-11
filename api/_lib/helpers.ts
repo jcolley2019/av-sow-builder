@@ -24,6 +24,128 @@ export function docxBufferToText(buf: Buffer): string {
   return text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+// SC.6: visual style extracted from a .docx/.dotx example's XML. Mirrors
+// StyleTheme in src/lib/types.ts — keep the two in sync.
+export interface StyleTheme {
+  bodyFont?: string;
+  bodySizePt?: number;
+  headingFont?: string;
+  heading1SizePt?: number;
+  heading2SizePt?: number;
+  headingColor?: string;
+  headingUnderline?: boolean;
+  headingUnderlineColor?: string;
+  titleSizePt?: number;
+  accentColor?: string;
+  headerBand?: { fill: string; textColor?: string } | null;
+}
+
+// Pull one <w:style w:styleId="X">…</w:style> block out of styles.xml.
+function styleBlock(stylesXml: string, styleId: string): string | null {
+  const re = new RegExp(
+    `<w:style [^>]*w:styleId="${styleId}"[^>]*>([\\s\\S]*?)</w:style>`,
+  );
+  return re.exec(stylesXml)?.[1] ?? null;
+}
+
+const HEX6 = "[0-9A-Fa-f]{6}";
+
+/**
+ * SC.6 — best-effort visual theme from a .docx/.dotx example. Every source
+ * part may be absent and every field is optional; any failure returns what
+ * was gathered so far (or {}), never throws.
+ */
+export function extractDocxTheme(buf: Buffer): StyleTheme {
+  const theme: StyleTheme = {};
+  try {
+    const zip = new PizZip(buf);
+    const part = (name: string): string => zip.file(name)?.asText() ?? "";
+
+    // word/theme/theme1.xml — major/minor latin typefaces + accent1.
+    const themeXml = part("word/theme/theme1.xml");
+    if (themeXml) {
+      const major = /<a:majorFont>[\s\S]*?<a:latin[^>]*typeface="([^"]+)"/.exec(themeXml)?.[1];
+      const minor = /<a:minorFont>[\s\S]*?<a:latin[^>]*typeface="([^"]+)"/.exec(themeXml)?.[1];
+      const accent1 = new RegExp(`<a:accent1>[\\s\\S]*?<a:srgbClr val="(${HEX6})"`).exec(themeXml)?.[1];
+      if (major) theme.headingFont = major;
+      if (minor) theme.bodyFont = minor;
+      if (accent1) theme.accentColor = accent1.toUpperCase();
+    }
+
+    // word/styles.xml — Normal / Heading1 / Heading2 / Title.
+    const stylesXml = part("word/styles.xml");
+    if (stylesXml) {
+      const rFonts = (block: string) => /<w:rFonts[^>]*w:ascii="([^"]+)"/.exec(block)?.[1];
+      const sizePt = (block: string) => {
+        const half = /<w:sz[^>]*w:val="(\d+)"/.exec(block)?.[1];
+        return half ? Number(half) / 2 : undefined;
+      };
+      const color = (block: string) =>
+        new RegExp(`<w:color[^>]*w:val="(${HEX6})"`).exec(block)?.[1]?.toUpperCase();
+
+      const normal = styleBlock(stylesXml, "Normal");
+      if (normal) {
+        const f = rFonts(normal);
+        const s = sizePt(normal);
+        if (f) theme.bodyFont = f; // explicit style beats theme font
+        if (s) theme.bodySizePt = s;
+      }
+
+      const h1 = styleBlock(stylesXml, "Heading1");
+      const h2 = styleBlock(stylesXml, "Heading2");
+      if (h1) {
+        const f = rFonts(h1);
+        const s = sizePt(h1);
+        const c = color(h1);
+        if (f) theme.headingFont = f;
+        if (s) theme.heading1SizePt = s;
+        if (c) theme.headingColor = c;
+      }
+      if (h2) {
+        const s = sizePt(h2);
+        if (s) theme.heading2SizePt = s;
+      }
+      // Heading styles read successfully → underline presence is definitive
+      // (false means the example's headings genuinely have no bottom border).
+      if (h1 || h2) theme.headingUnderline = false;
+      for (const block of [h1, h2]) {
+        if (!block) continue;
+        const bottom = /<w:pBdr>[\s\S]*?<w:bottom([^>]*)\/?>/.exec(block);
+        if (bottom) {
+          theme.headingUnderline = true;
+          const c = new RegExp(`w:color="(${HEX6})"`).exec(bottom[1])?.[1];
+          if (c) theme.headingUnderlineColor = c.toUpperCase();
+          break;
+        }
+      }
+
+      const title = styleBlock(stylesXml, "Title");
+      if (title) {
+        const s = sizePt(title);
+        if (s) theme.titleSizePt = s;
+      }
+    }
+
+    // word/header1..3.xml — first shaded paragraph/cell becomes the header band.
+    for (const name of ["word/header1.xml", "word/header2.xml", "word/header3.xml"]) {
+      const headerXml = part(name);
+      if (!headerXml) continue;
+      const shd = new RegExp(`<w:shd[^>]*w:fill="(${HEX6})"`).exec(headerXml);
+      if (!shd) continue;
+      const band: NonNullable<StyleTheme["headerBand"]> = { fill: shd[1].toUpperCase() };
+      // First explicit run color at/after the shaded element ≈ the band's text color.
+      const after = headerXml.slice(shd.index);
+      const runColor = new RegExp(`<w:color[^>]*w:val="(${HEX6})"`).exec(after)?.[1];
+      if (runColor) band.textColor = runColor.toUpperCase();
+      theme.headerBand = band;
+      break;
+    }
+  } catch {
+    /* best effort — return whatever was gathered */
+  }
+  return theme;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

@@ -61,6 +61,28 @@ export type SowDoc = {
   sections: SowSection[];
 };
 
+// SC.6: visual style extracted from a .docx/.dotx example's XML (theme fonts,
+// heading styles, header shading). Every field optional — renderers fall back
+// to house styling per-field. Mirrored in api/_lib/helpers.ts.
+export interface StyleTheme {
+  bodyFont?: string; // minorFont latin from theme1.xml, or Normal style rFonts
+  bodySizePt?: number; // Normal style sz/2
+  headingFont?: string; // majorFont latin, or Heading1 rFonts
+  heading1SizePt?: number;
+  heading2SizePt?: number;
+  headingColor?: string; // hex, no #
+  headingUnderline?: boolean; // Heading1/2 pBdr bottom border present
+  headingUnderlineColor?: string;
+  titleSizePt?: number; // Title style if present
+  accentColor?: string; // theme1.xml accent1
+  headerBand?: {
+    // from header1..3.xml: a shaded paragraph or single-row
+    // table with cell shading (w:shd fill)
+    fill: string;
+    textColor?: string;
+  } | null;
+}
+
 // SOW.7: the alternate output mode — a pricing-free budgetary ROM / scope
 // summary (one overview paragraph + a short blurb per room).
 export type RomDoc = {

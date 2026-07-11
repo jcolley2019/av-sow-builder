@@ -48,7 +48,7 @@ import {
   type StyleAnalysis,
   type StyleMode,
 } from "@/lib/api";
-import type { BomDoc, RomDoc, SowDoc } from "@/lib/types";
+import type { BomDoc, RomDoc, SowDoc, StyleTheme } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 
 type OutputMode = "sow" | "custom" | "rom" | "compare";
@@ -236,7 +236,9 @@ function App() {
 
   // Custom SOW mode: 1–2 example SOWs whose voice/structure the output matches.
   // Kept SEPARATE from the Match-a-Style state above (different flow/UI).
-  type CustomExample = { filename: string; text: string };
+  // SC.6: theme is the example's visual style (docx/dotx only). When two
+  // examples are loaded, customExamples[0]'s theme wins for rendering.
+  type CustomExample = { filename: string; text: string; theme?: StyleTheme };
   const [customExamples, setCustomExamples] = useState<CustomExample[]>([]);
   const [customExBusy, setCustomExBusy] = useState(false);
   const [customExError, setCustomExError] = useState<ExtractError | null>(null);
@@ -444,7 +446,7 @@ function App() {
     try {
       let text = (source.text ?? "").trim();
       const filename = source.file ? source.file.name : "Pasted example";
-      if (source.file) text = (await extractStyleText(source.file)).trim();
+      if (source.file) text = (await extractStyleText(source.file)).text.trim();
       if (!text) {
         setStyleError({ error: "No text could be read from that example." });
         return;
@@ -485,13 +487,14 @@ function App() {
     setCustomExBusy(true);
     try {
       for (const f of take) {
-        const text = (await extractStyleText(f)).trim();
+        const { text: rawText, theme } = await extractStyleText(f);
+        const text = rawText.trim();
         if (!text) {
           setCustomExError({ error: `No text could be read from ${f.name}.` });
           continue;
         }
         setCustomExamples((prev) =>
-          prev.length >= 2 ? prev : [...prev, { filename: f.name, text }],
+          prev.length >= 2 ? prev : [...prev, { filename: f.name, text, theme }],
         );
       }
     } catch (e) {
@@ -533,9 +536,11 @@ function App() {
     setSaveStyleBusy(true);
     setSaveStyleMsg(null);
     try {
+      // SC.6: persist the first example's visual theme with the style (the
+      // same first-example-wins rule used for rendering).
       const { error } = await supabase
         .from("sow_styles")
-        .insert({ name: trimmed, source_text });
+        .insert({ name: trimmed, source_text, theme: customExamples[0]?.theme ?? null });
       if (error) {
         setSaveStyleMsg(`Save failed: ${error.message}`);
         return;
@@ -656,7 +661,10 @@ function App() {
       });
     } else {
       if (!sow) return;
-      void downloadSowDocx(sow, models, num ? `${num}_SOW.docx` : "SOW.docx").catch((e) => {
+      // SC.6: themed export in Custom SOW mode only — Standard SOW keeps the
+      // house look. First example's theme wins when two are loaded.
+      const theme = mode === "custom" ? customExamples[0]?.theme : undefined;
+      void downloadSowDocx(sow, models, num ? `${num}_SOW.docx` : "SOW.docx", theme).catch((e) => {
         console.error("[SOW] .docx export failed", e);
       });
     }
