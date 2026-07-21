@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": { "node": "22.x" },
   "description": "Internal tool: ingest an AV/UC BOM and generate a formatted Scope of Work (SOW) Word document.",
   "scripts": {
     "dev": "concurrently -k -n web,api -c blue,magenta \"npm:dev:web\" \"npm:dev:api\"",
