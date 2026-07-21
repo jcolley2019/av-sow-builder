@@ -5,7 +5,7 @@
 // wrapper differs. Every route responds HTTP 200; failures come back as an
 // { error, raw } object in the body (unchanged from the original sidecar).
 
-import catalogJson from "../../src/lib/labor/catalog.json";
+import catalogJson from "../../src/lib/labor/catalog.json" with { type: "json" };
 
 import { callClaude, MODEL } from "./anthropic.js";
 import {
