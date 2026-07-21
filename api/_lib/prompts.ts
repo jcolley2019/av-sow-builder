@@ -126,7 +126,7 @@ function readTextSafe(rel: string): string {
 }
 
 const HOUSE_STYLE = readTextSafe("standards/house-style.md");
-const CENTENE_EXEMPLAR = readTextSafe("standards/examples/centene-sow.txt");
+const CENTENE_EXEMPLAR = readTextSafe("standards/exemplars/centene-sow.txt");
 
 export { CENTENE_EXEMPLAR };
 
